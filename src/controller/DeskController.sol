@@ -3,7 +3,7 @@ pragma solidity ^0.8.19;
 
 import "lib/openzeppelin-contracts/contracts/utils/Pausable.sol";
 import "lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
-import "lib/openzeppelin-contracts/contracts/access/Ownable.sol";
+import "lib/openzeppelin-contracts/contracts/access/AccessControl.sol";
 import "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
 import "../interfaces/IController.sol";
 import "../interfaces/IUSD.sol";
@@ -13,10 +13,15 @@ import "../interfaces/IOracle.sol";
  * @title DeskController
  * @dev Trading desk controller for fUSD minting/burning with ETH
  * Implements rate limiting, oracle-based pricing, and enhanced security features
+ * Uses AccessControl for multi-admin operations across different time zones
  */
-contract DeskController is IController, Pausable, Ownable, ReentrancyGuard {
+contract DeskController is IController, Pausable, AccessControl, ReentrancyGuard {
     IOracle public immutable oracle;
     IERC20 public immutable fUSD;
+    
+    // Role definitions for multi-admin access
+    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 public constant EMERGENCY_ROLE = keccak256("EMERGENCY_ROLE");
     
     // Rate limiting: configurable cooldown per account
     mapping(address => uint256) public lastActionTime;
@@ -41,16 +46,28 @@ contract DeskController is IController, Pausable, Ownable, ReentrancyGuard {
     event PriceValidationFailed(uint256 oldPrice, uint256 newPrice, uint256 maxMove);
     event PriceUpdated(uint256 oldPrice, uint256 newPrice);
     event MaxPriceMoveUpdated(uint256 oldMove, uint256 newMove);
-    event MintingPaused(address indexed owner);
-    event MintingResumed(address indexed owner);
-    event BurningPaused(address indexed owner);
-    event BurningResumed(address indexed owner);
+    event MintingPaused(address indexed admin);
+    event MintingResumed(address indexed admin);
+    event BurningPaused(address indexed admin);
+    event BurningResumed(address indexed admin);
     event OracleUpdated(address indexed oldOracle, address indexed newOracle);
-    event EmergencyAction(address indexed owner, string action, uint256 amount);
+    event EmergencyAction(address indexed admin, string action, uint256 amount);
     
     // Modifier for oracle health check
     modifier onlyHealthyOracle() {
         require(oracle.isHealthy(), "Oracle unhealthy");
+        _;
+    }
+    
+    // Modifier for admin operations
+    modifier onlyAdmin() {
+        require(hasRole(ADMIN_ROLE, msg.sender), "DeskController: admin role required");
+        _;
+    }
+    
+    // Modifier for emergency operations
+    modifier onlyEmergency() {
+        require(hasRole(EMERGENCY_ROLE, msg.sender), "DeskController: emergency role required");
         _;
     }
     
@@ -71,12 +88,17 @@ contract DeskController is IController, Pausable, Ownable, ReentrancyGuard {
      * @param _fUSD Address of the fUSD token contract
      * @param _oracle Address of the price oracle
      */
-    constructor(address _fUSD, address _oracle) Ownable(msg.sender) {
+    constructor(address _fUSD, address _oracle) {
         require(_fUSD != address(0), "fUSD: zero address");
         require(_oracle != address(0), "Oracle: zero address");
         
         fUSD = IERC20(_fUSD);
         oracle = IOracle(_oracle);
+        
+        // Initialize access control - deployer gets all roles initially
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(ADMIN_ROLE, msg.sender);
+        _grantRole(EMERGENCY_ROLE, msg.sender);
         
         // Initialize price tracking
         lastPrice = oracle.getETHUSD();
@@ -302,23 +324,23 @@ contract DeskController is IController, Pausable, Ownable, ReentrancyGuard {
     }
     
     /**
-     * @dev Pause all operations (only owner can call)
+     * @dev Pause all operations (only admin can call)
      */
-    function pause() external onlyOwner {
+    function pause() external onlyAdmin {
         _pause();
     }
     
     /**
-     * @dev Unpause all operations (only owner can call)
+     * @dev Unpause all operations (only admin can call)
      */
-    function unpause() external onlyOwner {
+    function unpause() external onlyAdmin {
         _unpause();
     }
     
     /**
      * @dev Pause minting operations only
      */
-    function pauseMinting() external onlyOwner {
+    function pauseMinting() external onlyAdmin {
         mintingPaused = true;
         emit MintingPaused(msg.sender);
     }
@@ -326,7 +348,7 @@ contract DeskController is IController, Pausable, Ownable, ReentrancyGuard {
     /**
      * @dev Resume minting operations
      */
-    function resumeMinting() external onlyOwner {
+    function resumeMinting() external onlyAdmin {
         mintingPaused = false;
         emit MintingResumed(msg.sender);
     }
@@ -334,7 +356,7 @@ contract DeskController is IController, Pausable, Ownable, ReentrancyGuard {
     /**
      * @dev Pause burning operations only
      */
-    function pauseBurning() external onlyOwner {
+    function pauseBurning() external onlyAdmin {
         burningPaused = true;
         emit BurningPaused(msg.sender);
     }
@@ -342,7 +364,7 @@ contract DeskController is IController, Pausable, Ownable, ReentrancyGuard {
     /**
      * @dev Resume burning operations
      */
-    function resumeBurning() external onlyOwner {
+    function resumeBurning() external onlyAdmin {
         burningPaused = false;
         emit BurningResumed(msg.sender);
     }
@@ -357,7 +379,7 @@ contract DeskController is IController, Pausable, Ownable, ReentrancyGuard {
         uint256 _cooldown,
         uint256 _minMint,
         uint256 _minEth
-    ) external onlyOwner {
+    ) external onlyAdmin {
         require(_cooldown > 0, "Cooldown must be positive");
         require(_minMint > 0, "Min mint must be positive");
         require(_minEth > 0, "Min ETH must be positive");
@@ -373,7 +395,7 @@ contract DeskController is IController, Pausable, Ownable, ReentrancyGuard {
      * @dev Set maximum allowed price movement
      * @param _maxMove Maximum price movement as fraction of 1e18 (e.g., 5e16 = 5%)
      */
-    function setMaxPriceMove(uint256 _maxMove) external onlyOwner {
+    function setMaxPriceMove(uint256 _maxMove) external onlyAdmin {
         require(_maxMove <= 1e18, "Move too large"); // Max 100%
         uint256 oldMove = maxPriceMove;
         maxPriceMove = _maxMove;
@@ -381,10 +403,10 @@ contract DeskController is IController, Pausable, Ownable, ReentrancyGuard {
     }
     
     /**
-     * @dev Emergency function to withdraw ETH (only owner can call)
+     * @dev Emergency function to withdraw ETH (only emergency role can call)
      * @param amount Amount of ETH to withdraw
      */
-    function emergencyWithdraw(uint256 amount) external onlyOwner {
+    function emergencyWithdraw(uint256 amount) external onlyEmergency {
         require(amount <= address(this).balance, "Insufficient balance");
         
         (bool success, ) = msg.sender.call{value: amount}("");
@@ -394,10 +416,10 @@ contract DeskController is IController, Pausable, Ownable, ReentrancyGuard {
     }
     
     /**
-     * @dev Emergency function to withdraw fUSD (only owner can call)
+     * @dev Emergency function to withdraw fUSD (only emergency role can call)
      * @param amount Amount of fUSD to withdraw
      */
-    function emergencyWithdrawFUSD(uint256 amount) external onlyOwner {
+    function emergencyWithdrawFUSD(uint256 amount) external onlyEmergency {
         uint256 balance = fUSD.balanceOf(address(this));
         require(amount <= balance, "Insufficient fUSD balance");
         
@@ -462,4 +484,58 @@ contract DeskController is IController, Pausable, Ownable, ReentrancyGuard {
     
     // Allow contract to receive ETH
     receive() external payable {}
+    
+    /**
+     * @dev Grant admin role to an address (only DEFAULT_ADMIN_ROLE can call)
+     * @param account Address to grant admin role to
+     */
+    function grantAdminRole(address account) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(account != address(0), "DeskController: zero address");
+        _grantRole(ADMIN_ROLE, account);
+    }
+    
+    /**
+     * @dev Revoke admin role from an address (only DEFAULT_ADMIN_ROLE can call)
+     * @param account Address to revoke admin role from
+     */
+    function revokeAdminRole(address account) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(account != address(0), "DeskController: zero address");
+        _revokeRole(ADMIN_ROLE, account);
+    }
+    
+    /**
+     * @dev Grant emergency role to an address (only DEFAULT_ADMIN_ROLE can call)
+     * @param account Address to grant emergency role to
+     */
+    function grantEmergencyRole(address account) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(account != address(0), "DeskController: zero address");
+        _grantRole(EMERGENCY_ROLE, account);
+    }
+    
+    /**
+     * @dev Revoke emergency role from an address (only DEFAULT_ADMIN_ROLE can call)
+     * @param account Address to revoke emergency role from
+     */
+    function revokeEmergencyRole(address account) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(account != address(0), "DeskController: zero address");
+        _revokeRole(EMERGENCY_ROLE, account);
+    }
+    
+    /**
+     * @dev Check if an address has admin role
+     * @param account Address to check
+     * @return True if address has admin role
+     */
+    function hasAdminRole(address account) external view returns (bool) {
+        return hasRole(ADMIN_ROLE, account);
+    }
+    
+    /**
+     * @dev Check if an address has emergency role
+     * @param account Address to check
+     * @return True if address has emergency role
+     */
+    function hasEmergencyRole(address account) external view returns (bool) {
+        return hasRole(EMERGENCY_ROLE, account);
+    }
 }

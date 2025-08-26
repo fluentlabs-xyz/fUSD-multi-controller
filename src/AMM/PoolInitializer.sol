@@ -1,3 +1,4 @@
+// PSEUDOCODE
 contract PoolInitializer {
     function initializeUniV2Pool(
         address factory,

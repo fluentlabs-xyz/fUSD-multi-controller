@@ -1,14 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-/**
- * @title IOracle
- * @dev Interface for price oracles
- */
-interface IOracle {
-    function getETHUSD() external view returns (uint256);
-    function isHealthy() external view returns (bool);
-}
+import "./interfaces/IOracle.sol";
 
 /**
  * @title MockOracle
@@ -87,7 +80,6 @@ contract MockOracle is IOracle {
      * @param enabled Whether to enable fluctuations
      */
     function setFluctuations(bool enabled) external onlyAdmin {
-        bool oldStatus = enableFluctuations;
         enableFluctuations = enabled;
         
         emit FluctuationsToggled(enabled);

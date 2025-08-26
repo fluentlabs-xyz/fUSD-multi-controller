@@ -34,4 +34,30 @@ interface IController {
      * @return ethAmount Amount of ETH that would be received
      */
     function getBurnQuote(uint256 fusdAmount) external view returns (uint256);
+    
+    /**
+     * @dev Get enhanced quote for minting fUSD with ETH (includes price and timestamp)
+     * @param ethAmount Amount of ETH to mint with
+     * @return fusdAmount Amount of fUSD that would be minted
+     * @return ethPrice Current ETH price
+     * @return timestamp Quote timestamp
+     */
+    function getMintQuoteDetailed(uint256 ethAmount) external view returns (
+        uint256 fusdAmount,
+        uint256 ethPrice,
+        uint256 timestamp
+    );
+    
+    /**
+     * @dev Get enhanced quote for burning fUSD to receive ETH (includes price and timestamp)
+     * @param fusdAmount Amount of fUSD to burn
+     * @return ethAmount Amount of ETH that would be received
+     * @return ethPrice Current ETH price
+     * @return timestamp Quote timestamp
+     */
+    function getBurnQuoteDetailed(uint256 fusdAmount) external view returns (
+        uint256 ethAmount,
+        uint256 ethPrice,
+        uint256 timestamp
+    );
 }

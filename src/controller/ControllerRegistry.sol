@@ -32,7 +32,7 @@ contract ControllerRegistry is AccessControl {
     // Events
     event ControllerAdded(address indexed controller, string name, uint256 dailyLimit);
     event ControllerRemoved(address indexed controller);
-    event ControllerUpdated(address indexed controller, string name, uint256 dailyLimit);
+    event ControllerUpdated(address indexed controller, string oldName, string newName, uint256 oldLimit, uint256 newLimit);
     event GlobalLimitUpdated(uint256 oldLimit, uint256 newLimit);
     event DailyLimitReset(address indexed controller, uint256 oldAmount, uint256 newAmount);
     
@@ -104,6 +104,7 @@ contract ControllerRegistry is AccessControl {
      * @param controller Address of the controller to update
      * @param name New name for the controller
      * @param limit New daily limit
+     * @dev Emits ControllerUpdated with both old and new values for audit trail
      */
     function updateController(
         address controller,
@@ -120,7 +121,7 @@ contract ControllerRegistry is AccessControl {
         controllers[controller].name = name;
         controllers[controller].dailyLimit = limit;
         
-        emit ControllerUpdated(controller, name, limit);
+        emit ControllerUpdated(controller, oldName, name, oldLimit, limit);
     }
     
     /**

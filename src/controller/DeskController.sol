@@ -25,6 +25,12 @@ contract DeskController is IController, Pausable, Ownable {
     uint256 public constant MIN_MINT = 1 * 1e6; // 1 fUSD
     uint256 public constant MIN_ETH = 0.0001 ether; // Dust prevention
     
+    // Modifier for oracle health check
+    modifier onlyHealthyOracle() {
+        require(oracle.isHealthy(), "Oracle unhealthy");
+        _;
+    }
+    
     // Events are defined in IController interface
     
     /**
@@ -44,7 +50,7 @@ contract DeskController is IController, Pausable, Ownable {
      * @dev Mint fUSD by sending ETH
      * Rate limited to once per day per account
      */
-    function mint() external payable whenNotPaused {
+    function mint() external payable whenNotPaused onlyHealthyOracle {
         require(block.timestamp >= lastActionTime[msg.sender] + ACTION_COOLDOWN, "Cooldown active");
         require(msg.value >= MIN_ETH, "ETH amount too small");
         
@@ -68,7 +74,7 @@ contract DeskController is IController, Pausable, Ownable {
      * Rate limited to once per day per account
      * @param fusdAmount Amount of fUSD to burn
      */
-    function burn(uint256 fusdAmount) external whenNotPaused {
+    function burn(uint256 fusdAmount) external whenNotPaused onlyHealthyOracle {
         require(block.timestamp >= lastActionTime[msg.sender] + ACTION_COOLDOWN, "Cooldown active");
         require(fusdAmount >= MIN_MINT, "Burn amount too small");
         
@@ -95,7 +101,7 @@ contract DeskController is IController, Pausable, Ownable {
      * @param ethAmount Amount of ETH to mint with
      * @return fusdAmount Amount of fUSD that would be minted
      */
-    function getMintQuote(uint256 ethAmount) external view returns (uint256) {
+    function getMintQuote(uint256 ethAmount) external view onlyHealthyOracle returns (uint256) {
         require(ethAmount >= MIN_ETH, "ETH amount too small");
         
         uint256 ethPrice = oracle.getETHUSD();
@@ -105,16 +111,14 @@ contract DeskController is IController, Pausable, Ownable {
     }
     
     /**
-     * @dev Get quote for burning fUSD to receive ETH
+     * @dev Get quote for burning fUSD to burn
      * @param fusdAmount Amount of fUSD to burn
      * @return ethAmount Amount of ETH that would be received
      */
-    function getBurnQuote(uint256 fusdAmount) external view returns (uint256) {
+    function getBurnQuote(uint256 fusdAmount) external view onlyHealthyOracle returns (uint256) {
         require(fusdAmount >= MIN_MINT, "Burn amount too small");
         
         uint256 ethPrice = oracle.getETHUSD();
-        require(ethPrice > 0, "Invalid oracle price");
-        
         return (fusdAmount * 1e18) / ethPrice;
     }
     
@@ -124,6 +128,14 @@ contract DeskController is IController, Pausable, Ownable {
      */
     function getETHUSD() external view returns (uint256) {
         return oracle.getETHUSD();
+    }
+    
+    /**
+     * @dev Check if oracle is healthy
+     * @return True if oracle is functioning normally
+     */
+    function isOracleHealthy() external view returns (bool) {
+        return oracle.isHealthy();
     }
     
     /**

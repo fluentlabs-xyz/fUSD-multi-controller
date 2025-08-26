@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import "forge-std/Script.sol";
-import "forge-std/StdJson.sol";
+import {Script, console} from "forge-std/Script.sol";
+import {stdJson} from "forge-std/StdJson.sol";
 
 import {fUSD} from "src/fUSD.sol";
 import {ControllerRegistry} from "src/controller/ControllerRegistry.sol";

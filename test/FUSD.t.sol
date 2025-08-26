@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import "forge-std/Test.sol";
-import "src/fUSD.sol";
-import "src/controller/DeskController.sol";
-import "src/controller/ControllerRegistry.sol";
-import "src/MockOracle.sol";
-import "src/interfaces/IController.sol";
-import "src/interfaces/IOracle.sol";
-import "src/interfaces/IUSD.sol";
+import {Test} from "forge-std/Test.sol";
+import {fUSD} from "src/fUSD.sol";
+import {DeskController} from "src/controller/DeskController.sol";
+import {ControllerRegistry} from "src/controller/ControllerRegistry.sol";
+import {MockOracle} from "src/MockOracle.sol";
+
 
 contract FUSDTest is Test {
     fUSD public token;
@@ -89,20 +87,20 @@ contract FUSDTest is Test {
     
     function test_MintFunctionality() public {
         uint256 mintAmount = 1 ether;
-        uint256 expectedFUSD = (mintAmount * ETH_PRICE) / 1e18;
+        uint256 expectedFusd = (mintAmount * ETH_PRICE) / 1e18;
         
         vm.deal(user1, mintAmount);
         vm.prank(user1);
         desk.mint{value: mintAmount}();
         
-        assertEq(token.balanceOf(user1), expectedFUSD);
+        assertEq(token.balanceOf(user1), expectedFusd);
         assertEq(address(desk).balance, INITIAL_ETH + mintAmount);
     }
     
     function test_BurnFunctionality() public {
         // First mint some fUSD
         uint256 mintAmount = 1 ether;
-        uint256 expectedFUSD = (mintAmount * ETH_PRICE) / 1e18;
+        uint256 expectedFusd = (mintAmount * ETH_PRICE) / 1e18;
         
         vm.deal(user1, mintAmount);
         vm.prank(user1);
@@ -110,8 +108,8 @@ contract FUSDTest is Test {
         
         // Now burn it back
         vm.startPrank(user1);
-        token.approve(address(desk), expectedFUSD);
-        desk.burn(expectedFUSD);
+        token.approve(address(desk), expectedFusd);
+        desk.burn(expectedFusd);
         vm.stopPrank();
         
         // Should get back approximately the same ETH (minus any fees/slippage)
@@ -197,9 +195,9 @@ contract FUSDTest is Test {
         vm.prank(admin);
         oracle.setFluctuationRange(100); // 1% fluctuations
         
-        uint256 price1 = desk.getETHUSD();
+        uint256 price1 = desk.getEthUsd();
         vm.warp(block.timestamp + 300); // 5 minutes later
-        uint256 price2 = desk.getETHUSD();
+        uint256 price2 = desk.getEthUsd();
         
         // Prices should be different due to fluctuations
         assertTrue(price1 != price2);
@@ -208,7 +206,7 @@ contract FUSDTest is Test {
     function test_OracleSwap() public {
         // This would test switching from mock to Pyth oracle
         // For now, test that current oracle works and can be queried
-        uint256 currentPrice = desk.getETHUSD();
+        uint256 currentPrice = desk.getEthUsd();
         assertEq(currentPrice, ETH_PRICE);
         
         // Test that price updates are tracked

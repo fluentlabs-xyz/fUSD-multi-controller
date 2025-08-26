@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import "lib/openzeppelin-contracts/contracts/utils/Pausable.sol";
-import "lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
-import "lib/openzeppelin-contracts/contracts/access/AccessControl.sol";
-import "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
-import "../interfaces/IController.sol";
-import "../interfaces/IUSD.sol";
-import "../interfaces/IOracle.sol";
+import {Pausable} from "lib/openzeppelin-contracts/contracts/utils/Pausable.sol";
+import {ReentrancyGuard} from "lib/openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
+import {AccessControl} from "lib/openzeppelin-contracts/contracts/access/AccessControl.sol";
+import {IERC20} from "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import {IController} from "../interfaces/IController.sol";
+import {IUSD} from "../interfaces/IUSD.sol";
+import {IOracle} from "../interfaces/IOracle.sol";
 
 /**
  * @title DeskController
@@ -16,8 +16,8 @@ import "../interfaces/IOracle.sol";
  * Uses AccessControl for multi-admin operations across different time zones
  */
 contract DeskController is IController, Pausable, AccessControl, ReentrancyGuard {
-    IOracle public immutable oracle;
-    IERC20 public immutable fUSD;
+    IOracle public immutable ORACLE;
+    IERC20 public immutable FUSD;
     
     // Role definitions for multi-admin access
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
@@ -55,7 +55,7 @@ contract DeskController is IController, Pausable, AccessControl, ReentrancyGuard
     
     // Modifier for oracle health check
     modifier onlyHealthyOracle() {
-        require(oracle.isHealthy(), "Oracle unhealthy");
+        require(ORACLE.isHealthy(), "Oracle unhealthy");
         _;
     }
     
@@ -85,15 +85,15 @@ contract DeskController is IController, Pausable, AccessControl, ReentrancyGuard
     
     /**
      * @dev Constructor
-     * @param _fUSD Address of the fUSD token contract
-     * @param _oracle Address of the price oracle
+     * @param fusd Address of the fUSD token contract
+     * @param oracle Address of the price oracle
      */
-    constructor(address _fUSD, address _oracle) {
-        require(_fUSD != address(0), "fUSD: zero address");
-        require(_oracle != address(0), "Oracle: zero address");
+    constructor(address fusd, address oracle) {
+        require(fusd != address(0), "fUSD: zero address");
+        require(oracle != address(0), "Oracle: zero address");
         
-        fUSD = IERC20(_fUSD);
-        oracle = IOracle(_oracle);
+        FUSD = IERC20(fusd);
+        ORACLE = IOracle(oracle);
         
         // Initialize access control - deployer gets all roles initially
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -101,7 +101,7 @@ contract DeskController is IController, Pausable, AccessControl, ReentrancyGuard
         _grantRole(EMERGENCY_ROLE, msg.sender);
         
         // Initialize price tracking
-        lastPrice = oracle.getETHUSD();
+        lastPrice = ORACLE.getEthUsd();
         lastPriceUpdate = block.timestamp;
     }
     
@@ -147,7 +147,7 @@ contract DeskController is IController, Pausable, AccessControl, ReentrancyGuard
         require(block.timestamp >= lastActionTime[msg.sender] + actionCooldown, "Cooldown active");
         require(msg.value >= minEth, "ETH amount too small");
         
-        uint256 ethPrice = oracle.getETHUSD(); // Returns price in 6 decimals
+        uint256 ethPrice = ORACLE.getEthUsd(); // Returns price in 6 decimals
         require(ethPrice > 0, "Invalid oracle price");
         
         // Validate price hasn't moved too much
@@ -161,7 +161,7 @@ contract DeskController is IController, Pausable, AccessControl, ReentrancyGuard
         
         lastActionTime[msg.sender] = block.timestamp;
         _updatePrice(ethPrice);
-        IUSD(address(fUSD)).mint(msg.sender, fusdAmount);
+        IUSD(address(FUSD)).mint(msg.sender, fusdAmount);
         
         emit Mint(msg.sender, msg.value, fusdAmount, ethPrice);
     }
@@ -176,7 +176,7 @@ contract DeskController is IController, Pausable, AccessControl, ReentrancyGuard
         require(block.timestamp >= lastActionTime[msg.sender] + actionCooldown, "Cooldown active");
         require(fusdAmount >= minMint, "Burn amount too small");
         
-        uint256 ethPrice = oracle.getETHUSD();
+        uint256 ethPrice = ORACLE.getEthUsd();
         require(ethPrice > 0, "Invalid oracle price");
         
         // Validate price hasn't moved too much
@@ -190,8 +190,8 @@ contract DeskController is IController, Pausable, AccessControl, ReentrancyGuard
         
         lastActionTime[msg.sender] = block.timestamp;
         _updatePrice(ethPrice);
-        fUSD.transferFrom(msg.sender, address(this), fusdAmount);
-        IUSD(address(fUSD)).burn(address(this), fusdAmount);
+        require(FUSD.transferFrom(msg.sender, address(this), fusdAmount), "FUSD transfer failed");
+        IUSD(address(FUSD)).burn(address(this), fusdAmount);
         
         (bool success, ) = msg.sender.call{value: ethAmount}("");
         require(success, "ETH transfer failed");
@@ -207,7 +207,7 @@ contract DeskController is IController, Pausable, AccessControl, ReentrancyGuard
     function getMintQuote(uint256 ethAmount) external view onlyHealthyOracle returns (uint256) {
         require(ethAmount >= minEth, "ETH amount too small");
         
-        uint256 ethPrice = oracle.getETHUSD();
+        uint256 ethPrice = ORACLE.getEthUsd();
         require(ethPrice > 0, "Invalid oracle price");
         
         return (ethAmount * ethPrice) / 1e18;
@@ -227,7 +227,7 @@ contract DeskController is IController, Pausable, AccessControl, ReentrancyGuard
     ) {
         require(ethAmount >= minEth, "ETH amount too small");
         
-        uint256 ethPrice = oracle.getETHUSD();
+        uint256 ethPrice = ORACLE.getEthUsd();
         require(ethPrice > 0, "Invalid oracle price");
         
         _fusdAmount = (ethAmount * ethPrice) / 1e18;
@@ -243,7 +243,7 @@ contract DeskController is IController, Pausable, AccessControl, ReentrancyGuard
     function getBurnQuote(uint256 fusdAmount) external view onlyHealthyOracle returns (uint256) {
         require(fusdAmount >= minMint, "Burn amount too small");
         
-        uint256 ethPrice = oracle.getETHUSD();
+        uint256 ethPrice = ORACLE.getEthUsd();
         require(ethPrice > 0, "Invalid oracle price");
         
         return (fusdAmount * 1e18) / ethPrice;
@@ -263,7 +263,7 @@ contract DeskController is IController, Pausable, AccessControl, ReentrancyGuard
     ) {
         require(fusdAmount >= minMint, "Burn amount too small");
         
-        uint256 ethPrice = oracle.getETHUSD();
+        uint256 ethPrice = ORACLE.getEthUsd();
         require(ethPrice > 0, "Invalid oracle price");
         
         _ethAmount = (fusdAmount * 1e18) / ethPrice;
@@ -275,8 +275,8 @@ contract DeskController is IController, Pausable, AccessControl, ReentrancyGuard
      * @dev Get current ETH/USD price from oracle
      * @return Current ETH price in 6 decimals
      */
-    function getETHUSD() external view returns (uint256) {
-        return oracle.getETHUSD();
+    function getEthUsd() external view returns (uint256) {
+        return ORACLE.getEthUsd();
     }
     
     /**
@@ -284,7 +284,7 @@ contract DeskController is IController, Pausable, AccessControl, ReentrancyGuard
      * @return True if oracle is functioning normally
      */
     function isOracleHealthy() external view returns (bool) {
-        return oracle.isHealthy();
+        return ORACLE.isHealthy();
     }
     
     /**
@@ -292,7 +292,7 @@ contract DeskController is IController, Pausable, AccessControl, ReentrancyGuard
      * @return Reserve ratio with 18 decimals
      */
     function getReserveRatio() external view returns (uint256) {
-        uint256 totalSupply = fUSD.totalSupply();
+        uint256 totalSupply = FUSD.totalSupply();
         if (totalSupply == 0) return 0;
         return (address(this).balance * 1e18) / totalSupply;
     }
@@ -303,7 +303,7 @@ contract DeskController is IController, Pausable, AccessControl, ReentrancyGuard
      * @return True if sufficient reserves exist
      */
     function hasSufficientReserves(uint256 fusdAmount) external view returns (bool) {
-        uint256 ethPrice = oracle.getETHUSD();
+        uint256 ethPrice = ORACLE.getEthUsd();
         if (ethPrice == 0) return false;
         uint256 requiredEth = (fusdAmount * 1e18) / ethPrice;
         return address(this).balance >= requiredEth;
@@ -419,11 +419,11 @@ contract DeskController is IController, Pausable, AccessControl, ReentrancyGuard
      * @dev Emergency function to withdraw fUSD (only emergency role can call)
      * @param amount Amount of fUSD to withdraw
      */
-    function emergencyWithdrawFUSD(uint256 amount) external onlyEmergency {
-        uint256 balance = fUSD.balanceOf(address(this));
+    function emergencyWithdrawFusd(uint256 amount) external onlyEmergency {
+        uint256 balance = FUSD.balanceOf(address(this));
         require(amount <= balance, "Insufficient fUSD balance");
         
-        fUSD.transfer(msg.sender, amount);
+        require(FUSD.transfer(msg.sender, amount), "FUSD transfer failed");
         
         emit EmergencyAction(msg.sender, "FUSD_WITHDRAW", amount);
     }
@@ -440,8 +440,8 @@ contract DeskController is IController, Pausable, AccessControl, ReentrancyGuard
      * @dev Get contract fUSD balance
      * @return Current fUSD balance
      */
-    function getFUSDBalance() external view returns (uint256) {
-        return fUSD.balanceOf(address(this));
+    function getFusdBalance() external view returns (uint256) {
+        return FUSD.balanceOf(address(this));
     }
     
     /**

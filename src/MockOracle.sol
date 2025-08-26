@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import "./interfaces/IOracle.sol";
+import {IOracle} from "./interfaces/IOracle.sol";
 
 /**
  * @title MockOracle
@@ -59,7 +59,7 @@ contract MockOracle is IOracle {
      * @dev Get current ETH/USD price
      * @return Current ETH price in 6 decimals
      */
-    function getETHUSD() external view returns (uint256) {
+    function getEthUsd() external view returns (uint256) {
         require(isOracleHealthy, "MockOracle: oracle unhealthy");
         
         if (!enableFluctuations) return ETH_PRICE;

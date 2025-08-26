@@ -19,7 +19,7 @@ interface IController {
     /**
      * @dev Get the current ETH/USD price from the oracle
      */
-    function getETHUSD() external view returns (uint256);
+    function getEthUsd() external view returns (uint256);
     
     /**
      * @dev Get a quote for minting fUSD with ETH

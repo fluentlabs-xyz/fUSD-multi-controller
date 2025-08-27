@@ -12,7 +12,7 @@ interface IUSD {
      * @param amount Amount of tokens to mint
      */
     function mint(address to, uint256 amount) external;
-    
+
     /**
      * @dev Burn tokens from an account
      * @param from Address to burn tokens from

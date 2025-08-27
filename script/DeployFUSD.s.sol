@@ -26,45 +26,42 @@ contract DeployFUSD is Script {
         string memory json = vm.readFile(configPath);
         address[] memory admins = abi.decode(vm.parseJson(json, ".admins"), (address[]));
         address[] memory emergency = abi.decode(vm.parseJson(json, ".emergency"), (address[]));
-        
+
         vm.startBroadcast(deployerPrivateKey);
-        
+
         // 1. Deploy token
         fUSD token = new fUSD();
-        
+
         // 2. Deploy registry
         address deployer = vm.addr(deployerPrivateKey);
         ControllerRegistry registry = new ControllerRegistry(deployer);
-        
+
         // 3. Setup multiple admins
-        for (uint i = 0; i < admins.length; i++) {
+        for (uint256 i = 0; i < admins.length; i++) {
             registry.grantRole(registry.ADMIN_ROLE(), admins[i]);
         }
-        
+
         // 4. Deploy mock oracle
         MockOracle oracle = new MockOracle(deployer);
-        
+
         // 5. Deploy desk controller
-        DeskController desk = new DeskController(
-            address(token),
-            address(oracle)
-        );
-        
+        DeskController desk = new DeskController(address(token), address(oracle));
+
         // 6. Wire up permissions
         token.grantRole(token.CONTROLLER_ROLE(), address(desk));
         registry.addController(address(desk), "Trading Desk", 1_000_000 * 1e6);
 
         // 6a. Grant controller admin and emergency roles
-        for (uint i = 0; i < admins.length; i++) {
+        for (uint256 i = 0; i < admins.length; i++) {
             desk.grantAdminRole(admins[i]);
         }
-        for (uint i = 0; i < emergency.length; i++) {
+        for (uint256 i = 0; i < emergency.length; i++) {
             desk.grantEmergencyRole(emergency[i]);
         }
-        
+
         // 7. Fund desk with initial ETH
         payable(address(desk)).transfer(0.1 ether);
-        
+
         // // 8. Initialize AMM pool
         // PoolInitializer poolInit = new PoolInitializer();
         // poolInit.initializeUniV2Pool{value: 5 ether}(
@@ -74,9 +71,9 @@ contract DeployFUSD is Script {
         //     address(desk),
         //     5 ether
         // );
-        
+
         vm.stopBroadcast();
-        
+
         // Log deployed addresses
         console.log("fUSD Token:", address(token));
         console.log("ControllerRegistry:", address(registry));

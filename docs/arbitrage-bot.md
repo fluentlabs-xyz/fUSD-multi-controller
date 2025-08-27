@@ -1,6 +1,6 @@
 # Arbitrage Bot Documentation
 
-**Navigation**: [README](../README.md) | [Controller Architecture](controller-architecture.md) | [Access Control](access-control.md) | [Oracle Integration](oracle-integration.md) | [AMM Pool Integration](amm-pool-integration.md) | [Arbitrage Bot](arbitrage-bot.md)
+**Navigation**: [← Back](amm-pool-integration.md) | **Arbitrage Bot** | [🏠 Home](../README.md) | Next →
 
 ---
 
@@ -520,4 +520,4 @@ Proper configuration and monitoring ensure profitable and stable operations whil
 
 ---
 
-**Navigation**: [README](../README.md) | [Controller Architecture](controller-architecture.md) | [Access Control](access-control.md) | [Oracle Integration](oracle-integration.md) | [AMM Pool Integration](amm-pool-integration.md) | [Arbitrage Bot](arbitrage-bot.md)
+**Navigation**: [← Back](amm-pool-integration.md) | **Arbitrage Bot** | [🏠 Home](../README.md) | Next →

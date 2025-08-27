@@ -1,6 +1,6 @@
 # AMM Pool Integration (Placeholder)
 
-**Navigation**: [README](../README.md) | [Controller Architecture](controller-architecture.md) | [Access Control](access-control.md) | [Oracle Integration](oracle-integration.md) | [AMM Pool Integration](amm-pool-integration.md) | [Arbitrage Bot](arbitrage-bot.md)
+**Navigation**: [← Back](oracle-integration.md) | **AMM Pool Integration** | [🏠 Home](../README.md) | [Next →](arbitrage-bot.md)
 
 ---
 
@@ -337,4 +337,4 @@ This integration is crucial for fUSD's growth and adoption in the broader DeFi e
 
 ---
 
-**Navigation**: [README](../README.md) | [Controller Architecture](controller-architecture.md) | [Access Control](access-control.md) | [Oracle Integration](oracle-integration.md) | [AMM Pool Integration](amm-pool-integration.md) | [Arbitrage Bot](arbitrage-bot.md)
+**Navigation**: [← Back](oracle-integration.md) | **AMM Pool Integration** | [🏠 Home](../README.md) | [Next →](arbitrage-bot.md)

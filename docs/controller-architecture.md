@@ -1,6 +1,6 @@
 # Controller Architecture
 
-**Navigation**: [README](../README.md) | [Controller Architecture](controller-architecture.md) | [Access Control](access-control.md) | [Oracle Integration](oracle-integration.md) | [AMM Pool Integration](amm-pool-integration.md) | [Arbitrage Bot](arbitrage-bot.md)
+**Navigation**: [← Back](../README.md) | **Controller Architecture** | [🏠 Home](../README.md) | [Next →](access-control.md)
 
 ---
 
@@ -310,4 +310,4 @@ This design ensures the system can evolve to meet changing requirements while ma
 
 ---
 
-**Navigation**: [README](../README.md) | [Controller Architecture](controller-architecture.md) | [Access Control](access-control.md) | [Oracle Integration](oracle-integration.md) | [AMM Pool Integration](amm-pool-integration.md) | [Arbitrage Bot](arbitrage-bot.md)
+**Navigation**: [← Back](../README.md) | **Controller Architecture** | [🏠 Home](../README.md) | [Next →](access-control.md)

@@ -1,6 +1,6 @@
 # Oracle Integration
 
-**Navigation**: [README](../README.md) | [Controller Architecture](controller-architecture.md) | [Access Control](access-control.md) | [Oracle Integration](oracle-integration.md) | [AMM Pool Integration](amm-pool-integration.md) | [Arbitrage Bot](arbitrage-bot.md)
+**Navigation**: [← Back](access-control.md) | **Oracle Integration** | [🏠 Home](../README.md) | [Next →](amm-pool-integration.md)
 
 ---
 
@@ -422,4 +422,4 @@ This design ensures accurate pricing while maintaining system stability and secu
 
 ---
 
-**Navigation**: [README](../README.md) | [Controller Architecture](controller-architecture.md) | [Access Control](access-control.md) | [Oracle Integration](oracle-integration.md) | [AMM Pool Integration](amm-pool-integration.md) | [Arbitrage Bot](arbitrage-bot.md)
+**Navigation**: [← Back](access-control.md) | **Oracle Integration** | [🏠 Home](../README.md) | [Next →](amm-pool-integration.md)

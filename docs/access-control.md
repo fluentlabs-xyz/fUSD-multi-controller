@@ -1,6 +1,6 @@
 # Access Control Patterns
 
-**Navigation**: [README](../README.md) | [Controller Architecture](controller-architecture.md) | [Access Control](access-control.md) | [Oracle Integration](oracle-integration.md) | [AMM Pool Integration](amm-pool-integration.md) | [Arbitrage Bot](arbitrage-bot.md)
+**Navigation**: [← Back](controller-architecture.md) | **Access Control** | [🏠 Home](../README.md) | [Next →](oracle-integration.md)
 
 ---
 
@@ -350,4 +350,4 @@ This design ensures secure, efficient operations while maintaining the ability t
 
 ---
 
-**Navigation**: [README](../README.md) | [Controller Architecture](controller-architecture.md) | [Access Control](access-control.md) | [Oracle Integration](oracle-integration.md) | [AMM Pool Integration](amm-pool-integration.md) | [Arbitrage Bot](arbitrage-bot.md)
+**Navigation**: [← Back](controller-architecture.md) | **Access Control** | [🏠 Home](../README.md) | [Next →](oracle-integration.md)

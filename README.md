@@ -1,6 +1,6 @@
 # Fluent Testnet Stablecoin (fUSD)
 
-**Navigation**: [README](README.md) | [Controller Architecture](docs/controller-architecture.md) | [Access Control](docs/access-control.md) | [Oracle Integration](docs/oracle-integration.md) | [AMM Pool Integration](docs/amm-pool-integration.md) | [Arbitrage Bot](docs/arbitrage-bot.md)
+**Navigation**: ← Back | **README** | [🏠 Home](README.md) | [Next →](docs/controller-architecture.md)
 
 ---
 
@@ -287,4 +287,4 @@ MIT
 
 ---
 
-**Navigation**: [README](README.md) | [Controller Architecture](docs/controller-architecture.md) | [Access Control](docs/access-control.md) | [Oracle Integration](docs/oracle-integration.md) | [AMM Pool Integration](docs/amm-pool-integration.md) | [Arbitrage Bot](docs/arbitrage-bot.md)
+**Navigation**: ← Back | **README** | [🏠 Home](README.md) | [Next →](docs/controller-architecture.md)

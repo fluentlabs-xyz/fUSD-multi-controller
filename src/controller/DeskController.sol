@@ -191,7 +191,7 @@ contract DeskController is IController, Pausable, AccessControl, ReentrancyGuard
         lastActionTime[msg.sender] = block.timestamp;
         _updatePrice(ethPrice);
         require(FUSD.transferFrom(msg.sender, address(this), fusdAmount), "FUSD transfer failed");
-        IUSD(address(FUSD)).burn(address(this), fusdAmount);
+        IUSD(address(FUSD)).burnFrom(address(this), fusdAmount);
 
         (bool success,) = msg.sender.call{value: ethAmount}("");
         require(success, "ETH transfer failed");

@@ -37,7 +37,7 @@ DEFAULT_ADMIN_ROLE (0x00)
 - **Purpose**: Authorize contracts to mint/burn fUSD
 - **Capabilities**:
   - Call `mint()` function
-  - Call `burn()` function
+  - Call `burnFrom()` function
 - **Holders**: Controller contracts only (never EOAs)
 
 #### 3. ADMIN_ROLE (Controllers & Registry)

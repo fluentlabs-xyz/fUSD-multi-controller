@@ -18,5 +18,5 @@ interface IUSD {
      * @param from Address to burn tokens from
      * @param amount Amount of tokens to burn
      */
-    function burn(address from, uint256 amount) external;
+    function burnFrom(address from, uint256 amount) external;
 }

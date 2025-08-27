@@ -19,7 +19,7 @@ contract fUSD is ERC20, AccessControl {
         _mint(to, amount);
     }
 
-    function burn(address from, uint256 amount) external onlyRole(CONTROLLER_ROLE) {
+    function burnFrom(address from, uint256 amount) external onlyRole(CONTROLLER_ROLE) {
         _burn(from, amount);
     }
 

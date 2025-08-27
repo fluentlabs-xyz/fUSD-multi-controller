@@ -93,11 +93,11 @@ contract FUSDTest is Test {
 
         // Only controllers should be able to burn
         vm.expectRevert();
-        stablecoin.burn(user1, 500 * 1e6);
+        stablecoin.burnFrom(user1, 500 * 1e6);
 
         // Controller should be able to burn
         vm.prank(address(desk));
-        stablecoin.burn(user1, 500 * 1e6);
+        stablecoin.burnFrom(user1, 500 * 1e6);
         assertEq(stablecoin.balanceOf(user1), 500 * 1e6);
     }
 

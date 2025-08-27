@@ -9,7 +9,7 @@ import {IOracle} from "./interfaces/IOracle.sol";
  * Includes deterministic fluctuations and health status for testing various scenarios
  */
 contract MockOracle is IOracle {
-    uint256 public constant ETH_PRICE = 4500 * 1e6; // $4500 with 6 decimals
+    uint256 public ETH_PRICE = 4500 * 1e6; // $4500 with 6 decimals
     bool public enableFluctuations = false;
     uint256 public fluctuationRange = 50; // 0.5% = 50 basis points
     
@@ -24,6 +24,7 @@ contract MockOracle is IOracle {
     event FluctuationRangeUpdated(uint256 oldRange, uint256 newRange);
     event HealthStatusUpdated(bool oldStatus, bool newStatus);
     event AdminUpdated(address indexed oldAdmin, address indexed newAdmin);
+    event PriceUpdated(uint256 oldPrice, uint256 newPrice);
     
     // Modifier for admin-only functions
     modifier onlyAdmin() {
@@ -51,8 +52,21 @@ contract MockOracle is IOracle {
         // Deterministic fluctuations for testing
         // Changes every 5 minutes (300 seconds) for predictable testing
         uint256 seed = uint256(keccak256(abi.encode(timestamp / 300)));
-        int256 deviation = int256(seed % (fluctuationRange * 2)) - int256(fluctuationRange);
-        return uint256(int256(ETH_PRICE) + (int256(ETH_PRICE) * deviation / 10000));
+        
+        // Generate a more meaningful deviation that actually uses the full range
+        // Convert basis points to actual percentage and apply to price
+        uint256 maxDeviation = (ETH_PRICE * fluctuationRange) / 10000; // Convert basis points to actual price deviation
+        uint256 deviation = seed % (maxDeviation * 2 + 1); // +1 to include maxDeviation
+        uint256 priceChange = deviation > maxDeviation ? maxDeviation : deviation;
+        
+        // Randomly decide if price goes up or down
+        bool priceGoesUp = (seed % 2) == 0;
+        
+        if (priceGoesUp) {
+            return ETH_PRICE + priceChange;
+        } else {
+            return ETH_PRICE > priceChange ? ETH_PRICE - priceChange : ETH_PRICE / 2; // Prevent negative prices
+        }
     }
     
     /**
@@ -174,5 +188,18 @@ contract MockOracle is IOracle {
     function simulateRecovery() external onlyAdmin {
         isOracleHealthy = true;
         emit HealthStatusUpdated(false, true);
+    }
+
+    /**
+     * @dev Set a specific price for testing purposes (admin only)
+     * @param newPrice New price to set
+     */
+    function setPrice(uint256 newPrice) external onlyAdmin {
+        require(newPrice > 0, "MockOracle: price must be positive");
+        
+        uint256 oldPrice = ETH_PRICE;
+        ETH_PRICE = newPrice;
+        
+        emit PriceUpdated(oldPrice, newPrice);
     }
 }

@@ -1,0 +1,22 @@
+# 1. Verify fUSD Token (no constructor args)
+forge verify-contract 0x9d4103b780eefe35429110fab1e9acc8af1ae466 fUSD \
+    --verifier blockscout \
+    --verifier-url https://testnet.fluentscan.xyz/api/
+
+# 2. Verify ControllerRegistry
+forge verify-contract 0x1c82e8097ba9f362fee07a919cbdaa45585f1cea ControllerRegistry \
+    --verifier blockscout \
+    --verifier-url https://testnet.fluentscan.xyz/api/ \
+    --constructor-args $(cast abi-encode "constructor(address)" 0xB0eAbD3148bEeBaE261B82e467314ADfa3da66A5)
+
+# 3. Verify MockOracle
+forge verify-contract 0xad847715e6883d81bd0d70531a78ae856da7e7f4 MockOracle \
+    --verifier blockscout \
+    --verifier-url https://testnet.fluentscan.xyz/api/ \
+    --constructor-args $(cast abi-encode "constructor(address)" 0xB0eAbD3148bEeBaE261B82e467314ADfa3da66A5)
+
+# 4. Verify DeskController
+forge verify-contract 0xe1E1AaC9615106baf57Dc7D16BfC3ffA2a48e437 DeskController \
+    --verifier blockscout \
+    --verifier-url https://testnet.fluentscan.xyz/api/ \
+    --constructor-args $(cast abi-encode "constructor(address,address)" 0x9d4103b780eefe35429110fab1e9acc8af1ae466 0xad847715e6883d81bd0d70531a78ae856da7e7f4)

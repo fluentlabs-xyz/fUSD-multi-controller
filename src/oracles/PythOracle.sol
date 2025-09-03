@@ -4,18 +4,22 @@ pragma solidity ^0.8.19;
 import {IOracle} from "../interfaces/IOracle.sol";
 import {IPyth} from "@pythnetwork/pyth-sdk-solidity/IPyth.sol";
 import {PythStructs} from "@pythnetwork/pyth-sdk-solidity/PythStructs.sol";
+import {AccessControl} from "lib/openzeppelin-contracts/contracts/access/AccessControl.sol";
 
 /**
  * @title PythOracle
  * @dev Oracle implementation using Pyth Network for ETH/USD price feeds
  * Converts Pyth prices to 6-decimal format and implements health checks
  */
-contract PythOracle is IOracle {
+contract PythOracle is IOracle, AccessControl {
     // Pyth Network ETH/USD price feed ID
     bytes32 public constant ETH_USD_PRICE_ID = 0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace;
     
     IPyth public immutable pyth;
-    address public admin;
+    
+    // Role definitions
+    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 public constant EMERGENCY_ROLE = keccak256("EMERGENCY_ROLE");
     
     // Configuration parameters
     uint256 public maxPriceAge = 3600; // 1 hour max staleness
@@ -25,15 +29,9 @@ contract PythOracle is IOracle {
     // Events
     event PriceAgeUpdated(uint256 oldAge, uint256 newAge);
     event ConfidenceRatioUpdated(uint256 oldRatio, uint256 newRatio);
-    event AdminTransferred(address indexed oldAdmin, address indexed newAdmin);
     event EmergencyPauseToggled(bool paused);
     event PriceFeedsUpdated(address indexed updater, uint256 fee, uint256 refund);
 
-    // Modifier for admin access
-    modifier onlyAdmin() {
-        require(msg.sender == admin, "PythOracle: admin only");
-        _;
-    }
 
     /**
      * @dev Constructor
@@ -45,7 +43,10 @@ contract PythOracle is IOracle {
         require(_admin != address(0), "PythOracle: zero admin address");
         
         pyth = IPyth(_pyth);
-        admin = _admin;
+        
+        _grantRole(DEFAULT_ADMIN_ROLE, _admin);
+        _grantRole(ADMIN_ROLE, _admin);
+        _grantRole(EMERGENCY_ROLE, _admin);
     }
 
     /**
@@ -196,7 +197,7 @@ contract PythOracle is IOracle {
      * @dev Update maximum price age
      * @param newAge New maximum age in seconds
      */
-    function setMaxPriceAge(uint256 newAge) external onlyAdmin {
+    function setMaxPriceAge(uint256 newAge) external onlyRole(ADMIN_ROLE) {
         require(newAge > 0 && newAge <= 86400, "PythOracle: invalid age"); // Max 24 hours
         
         uint256 oldAge = maxPriceAge;
@@ -209,7 +210,7 @@ contract PythOracle is IOracle {
      * @dev Update maximum confidence ratio
      * @param newRatio New maximum confidence ratio in basis points
      */
-    function setMaxConfidenceRatio(uint256 newRatio) external onlyAdmin {
+    function setMaxConfidenceRatio(uint256 newRatio) external onlyRole(ADMIN_ROLE) {
         require(newRatio > 0 && newRatio <= 5000, "PythOracle: invalid ratio"); // Max 50%
         
         uint256 oldRatio = maxConfidenceRatio;
@@ -218,24 +219,12 @@ contract PythOracle is IOracle {
         emit ConfidenceRatioUpdated(oldRatio, newRatio);
     }
 
-    /**
-     * @dev Transfer admin role
-     * @param newAdmin New admin address
-     */
-    function transferAdmin(address newAdmin) external onlyAdmin {
-        require(newAdmin != address(0), "PythOracle: zero address");
-        
-        address oldAdmin = admin;
-        admin = newAdmin;
-        
-        emit AdminTransferred(oldAdmin, newAdmin);
-    }
 
     /**
      * @dev Toggle emergency pause
      * @param paused True to pause, false to unpause
      */
-    function setEmergencyPause(bool paused) external onlyAdmin {
+    function setEmergencyPause(bool paused) external onlyRole(EMERGENCY_ROLE) {
         emergencyPause = paused;
         emit EmergencyPauseToggled(paused);
     }

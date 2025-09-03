@@ -2,13 +2,14 @@
 pragma solidity ^0.8.19;
 
 import {IOracle} from "../interfaces/IOracle.sol";
+import {AccessControl} from "lib/openzeppelin-contracts/contracts/access/AccessControl.sol";
 
 /**
  * @title MockOracle
  * @dev Mock oracle for testing fUSD with configurable ETH/USD pricing
  * Includes deterministic fluctuations and health status for testing various scenarios
  */
-contract MockOracle is IOracle {
+contract MockOracle is IOracle, AccessControl {
     uint256 public ETH_PRICE = 4500 * 1e6; // $4500 with 6 decimals
     bool public enableFluctuations = false;
     uint256 public fluctuationRange = 50; // 0.5% = 50 basis points
@@ -16,21 +17,16 @@ contract MockOracle is IOracle {
     // Oracle health status
     bool public isOracleHealthy = true;
 
-    // Admin controls
-    address public admin;
+    // Role definitions
+    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 public constant EMERGENCY_ROLE = keccak256("EMERGENCY_ROLE");
 
     // Events
     event FluctuationsToggled(bool enabled);
     event FluctuationRangeUpdated(uint256 oldRange, uint256 newRange);
     event HealthStatusUpdated(bool oldStatus, bool newStatus);
-    event AdminUpdated(address indexed oldAdmin, address indexed newAdmin);
     event PriceUpdated(uint256 oldPrice, uint256 newPrice);
 
-    // Modifier for admin-only functions
-    modifier onlyAdmin() {
-        require(msg.sender == admin, "MockOracle: admin only");
-        _;
-    }
 
     /**
      * @dev Constructor
@@ -38,7 +34,10 @@ contract MockOracle is IOracle {
      */
     constructor(address _admin) {
         require(_admin != address(0), "MockOracle: zero address");
-        admin = _admin;
+        
+        _grantRole(DEFAULT_ADMIN_ROLE, _admin);
+        _grantRole(ADMIN_ROLE, _admin);
+        _grantRole(EMERGENCY_ROLE, _admin);
     }
 
     /**
@@ -93,7 +92,7 @@ contract MockOracle is IOracle {
      * @dev Toggle price fluctuations on/off
      * @param enabled Whether to enable fluctuations
      */
-    function setFluctuations(bool enabled) external onlyAdmin {
+    function setFluctuations(bool enabled) external onlyRole(ADMIN_ROLE) {
         enableFluctuations = enabled;
 
         emit FluctuationsToggled(enabled);
@@ -103,7 +102,7 @@ contract MockOracle is IOracle {
      * @dev Update fluctuation range
      * @param newRange New fluctuation range in basis points (1 = 0.01%)
      */
-    function setFluctuationRange(uint256 newRange) external onlyAdmin {
+    function setFluctuationRange(uint256 newRange) external onlyRole(ADMIN_ROLE) {
         require(newRange <= 1000, "MockOracle: range too high"); // Max 10%
 
         uint256 oldRange = fluctuationRange;
@@ -116,25 +115,13 @@ contract MockOracle is IOracle {
      * @dev Set oracle health status
      * @param healthy Whether oracle should be healthy
      */
-    function setHealthStatus(bool healthy) external onlyAdmin {
+    function setHealthStatus(bool healthy) external onlyRole(EMERGENCY_ROLE) {
         bool oldStatus = isOracleHealthy;
         isOracleHealthy = healthy;
 
         emit HealthStatusUpdated(oldStatus, healthy);
     }
 
-    /**
-     * @dev Update admin address
-     * @param newAdmin New admin address
-     */
-    function setAdmin(address newAdmin) external onlyAdmin {
-        require(newAdmin != address(0), "MockOracle: zero address");
-
-        address oldAdmin = admin;
-        admin = newAdmin;
-
-        emit AdminUpdated(oldAdmin, newAdmin);
-    }
 
     /**
      * @dev Get current price with fluctuations (if enabled)
@@ -171,7 +158,7 @@ contract MockOracle is IOracle {
     /**
      * @dev Simulate oracle failure (for testing error scenarios)
      */
-    function simulateFailure() external onlyAdmin {
+    function simulateFailure() external onlyRole(EMERGENCY_ROLE) {
         isOracleHealthy = false;
         emit HealthStatusUpdated(true, false);
     }
@@ -179,7 +166,7 @@ contract MockOracle is IOracle {
     /**
      * @dev Simulate oracle recovery
      */
-    function simulateRecovery() external onlyAdmin {
+    function simulateRecovery() external onlyRole(EMERGENCY_ROLE) {
         isOracleHealthy = true;
         emit HealthStatusUpdated(false, true);
     }
@@ -188,7 +175,7 @@ contract MockOracle is IOracle {
      * @dev Set a specific price for testing purposes (admin only)
      * @param newPrice New price to set
      */
-    function setPrice(uint256 newPrice) external onlyAdmin {
+    function setPrice(uint256 newPrice) external onlyRole(ADMIN_ROLE) {
         require(newPrice > 0, "MockOracle: price must be positive");
 
         uint256 oldPrice = ETH_PRICE;

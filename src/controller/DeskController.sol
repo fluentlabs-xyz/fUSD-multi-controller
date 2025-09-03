@@ -16,7 +16,7 @@ import {IOracle} from "../interfaces/IOracle.sol";
  * Uses AccessControl for multi-admin operations across different time zones
  */
 contract DeskController is IController, Pausable, AccessControl, ReentrancyGuard {
-    IOracle public immutable ORACLE;
+    IOracle public oracle;
     IERC20 public immutable FUSD;
 
     // Role definitions for multi-admin access
@@ -41,6 +41,11 @@ contract DeskController is IController, Pausable, AccessControl, ReentrancyGuard
     bool public mintingPaused = false;
     bool public burningPaused = false;
 
+    // Oracle switching with timelock
+    uint256 public constant ORACLE_UPDATE_DELAY = 2 days;
+    address public pendingOracle;
+    uint256 public oracleUpdateTimestamp;
+
     // Events
     event ConfigUpdated(uint256 cooldown, uint256 minMint, uint256 minEth);
     event PriceValidationFailed(uint256 oldPrice, uint256 newPrice, uint256 maxMove);
@@ -51,11 +56,13 @@ contract DeskController is IController, Pausable, AccessControl, ReentrancyGuard
     event BurningPaused(address indexed admin);
     event BurningResumed(address indexed admin);
     event OracleUpdated(address indexed oldOracle, address indexed newOracle);
+    event OracleUpdateProposed(address indexed currentOracle, address indexed newOracle, uint256 executeTime);
+    event OracleUpdateCancelled(address indexed cancelledOracle);
     event EmergencyAction(address indexed admin, string action, uint256 amount);
 
     // Modifier for oracle health check
     modifier onlyHealthyOracle() {
-        require(ORACLE.isHealthy(), "Oracle unhealthy");
+        require(oracle.isHealthy(), "Oracle unhealthy");
         _;
     }
 
@@ -86,14 +93,14 @@ contract DeskController is IController, Pausable, AccessControl, ReentrancyGuard
     /**
      * @dev Constructor
      * @param fusd Address of the fUSD token contract
-     * @param oracle Address of the price oracle
+     * @param _oracle Address of the price oracle
      */
-    constructor(address fusd, address oracle) {
+    constructor(address fusd, address _oracle) {
         require(fusd != address(0), "fUSD: zero address");
-        require(oracle != address(0), "Oracle: zero address");
+        require(_oracle != address(0), "Oracle: zero address");
 
         FUSD = IERC20(fusd);
-        ORACLE = IOracle(oracle);
+        oracle = IOracle(_oracle);
 
         // Initialize access control - deployer gets all roles initially
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
@@ -101,7 +108,7 @@ contract DeskController is IController, Pausable, AccessControl, ReentrancyGuard
         _grantRole(EMERGENCY_ROLE, msg.sender);
 
         // Initialize price tracking
-        lastPrice = ORACLE.getEthUsd();
+        lastPrice = oracle.getEthUsd();
         lastPriceUpdate = block.timestamp;
     }
 
@@ -147,7 +154,7 @@ contract DeskController is IController, Pausable, AccessControl, ReentrancyGuard
         require(block.timestamp >= lastActionTime[msg.sender] + actionCooldown, "Cooldown active");
         require(msg.value >= minEth, "ETH amount too small");
 
-        uint256 ethPrice = ORACLE.getEthUsd(); // Returns price in 6 decimals
+        uint256 ethPrice = oracle.getEthUsd(); // Returns price in 6 decimals
         require(ethPrice > 0, "Invalid oracle price");
 
         // Validate price hasn't moved too much
@@ -176,7 +183,7 @@ contract DeskController is IController, Pausable, AccessControl, ReentrancyGuard
         require(block.timestamp >= lastActionTime[msg.sender] + actionCooldown, "Cooldown active");
         require(fusdAmount >= minMint, "Burn amount too small");
 
-        uint256 ethPrice = ORACLE.getEthUsd();
+        uint256 ethPrice = oracle.getEthUsd();
         require(ethPrice > 0, "Invalid oracle price");
 
         // Validate price hasn't moved too much
@@ -207,7 +214,7 @@ contract DeskController is IController, Pausable, AccessControl, ReentrancyGuard
     function getMintQuote(uint256 ethAmount) external view onlyHealthyOracle returns (uint256) {
         require(ethAmount >= minEth, "ETH amount too small");
 
-        uint256 ethPrice = ORACLE.getEthUsd();
+        uint256 ethPrice = oracle.getEthUsd();
         require(ethPrice > 0, "Invalid oracle price");
 
         return (ethAmount * ethPrice) / 1e18;
@@ -228,7 +235,7 @@ contract DeskController is IController, Pausable, AccessControl, ReentrancyGuard
     {
         require(ethAmount >= minEth, "ETH amount too small");
 
-        uint256 ethPrice = ORACLE.getEthUsd();
+        uint256 ethPrice = oracle.getEthUsd();
         require(ethPrice > 0, "Invalid oracle price");
 
         _fusdAmount = (ethAmount * ethPrice) / 1e18;
@@ -244,7 +251,7 @@ contract DeskController is IController, Pausable, AccessControl, ReentrancyGuard
     function getBurnQuote(uint256 fusdAmount) external view onlyHealthyOracle returns (uint256) {
         require(fusdAmount >= minMint, "Burn amount too small");
 
-        uint256 ethPrice = ORACLE.getEthUsd();
+        uint256 ethPrice = oracle.getEthUsd();
         require(ethPrice > 0, "Invalid oracle price");
 
         return (fusdAmount * 1e18) / ethPrice;
@@ -265,7 +272,7 @@ contract DeskController is IController, Pausable, AccessControl, ReentrancyGuard
     {
         require(fusdAmount >= minMint, "Burn amount too small");
 
-        uint256 ethPrice = ORACLE.getEthUsd();
+        uint256 ethPrice = oracle.getEthUsd();
         require(ethPrice > 0, "Invalid oracle price");
 
         _ethAmount = (fusdAmount * 1e18) / ethPrice;
@@ -278,7 +285,7 @@ contract DeskController is IController, Pausable, AccessControl, ReentrancyGuard
      * @return Current ETH price in 6 decimals
      */
     function getEthUsd() external view returns (uint256) {
-        return ORACLE.getEthUsd();
+        return oracle.getEthUsd();
     }
 
     /**
@@ -286,7 +293,7 @@ contract DeskController is IController, Pausable, AccessControl, ReentrancyGuard
      * @return True if oracle is functioning normally
      */
     function isOracleHealthy() external view returns (bool) {
-        return ORACLE.isHealthy();
+        return oracle.isHealthy();
     }
 
     /**
@@ -305,7 +312,7 @@ contract DeskController is IController, Pausable, AccessControl, ReentrancyGuard
      * @return True if sufficient reserves exist
      */
     function hasSufficientReserves(uint256 fusdAmount) external view returns (bool) {
-        uint256 ethPrice = ORACLE.getEthUsd();
+        uint256 ethPrice = oracle.getEthUsd();
         if (ethPrice == 0) return false;
         uint256 requiredEth = (fusdAmount * 1e18) / ethPrice;
         return address(this).balance >= requiredEth;
@@ -394,6 +401,68 @@ contract DeskController is IController, Pausable, AccessControl, ReentrancyGuard
         uint256 oldMove = maxPriceMove;
         maxPriceMove = _maxMove;
         emit MaxPriceMoveUpdated(oldMove, _maxMove);
+    }
+
+    /**
+     * @dev Propose a new oracle address (admin only)
+     * @param newOracle Address of the new oracle contract
+     */
+    function proposeOracleUpdate(address newOracle) external onlyAdmin {
+        require(newOracle != address(0), "Oracle: zero address");
+        require(newOracle != address(oracle), "Oracle: same address");
+        
+        // Validate the new oracle implements the interface
+        try IOracle(newOracle).getEthUsd() returns (uint256 price) {
+            require(price > 0, "Oracle: invalid price");
+        } catch {
+            revert("Oracle: invalid interface");
+        }
+        
+        try IOracle(newOracle).isHealthy() returns (bool healthy) {
+            require(healthy, "Oracle: not healthy");
+        } catch {
+            revert("Oracle: invalid interface");
+        }
+        
+        pendingOracle = newOracle;
+        oracleUpdateTimestamp = block.timestamp + ORACLE_UPDATE_DELAY;
+        
+        emit OracleUpdateProposed(address(oracle), newOracle, oracleUpdateTimestamp);
+    }
+    
+    /**
+     * @dev Execute the pending oracle update after timelock
+     */
+    function executeOracleUpdate() external onlyAdmin {
+        require(pendingOracle != address(0), "No pending oracle");
+        require(block.timestamp >= oracleUpdateTimestamp, "Timelock not expired");
+        require(block.timestamp <= oracleUpdateTimestamp + 1 days, "Update expired");
+        
+        address oldOracle = address(oracle);
+        oracle = IOracle(pendingOracle);
+        
+        // Update price tracking with new oracle
+        lastPrice = oracle.getEthUsd();
+        lastPriceUpdate = block.timestamp;
+        
+        // Clear pending state
+        pendingOracle = address(0);
+        oracleUpdateTimestamp = 0;
+        
+        emit OracleUpdated(oldOracle, address(oracle));
+    }
+    
+    /**
+     * @dev Cancel a pending oracle update
+     */
+    function cancelOracleUpdate() external onlyAdmin {
+        require(pendingOracle != address(0), "No pending oracle");
+        
+        address cancelled = pendingOracle;
+        pendingOracle = address(0);
+        oracleUpdateTimestamp = 0;
+        
+        emit OracleUpdateCancelled(cancelled);
     }
 
     /**

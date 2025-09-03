@@ -8,6 +8,8 @@ import {fUSD} from "src/fUSD.sol";
 import {ControllerRegistry} from "src/controller/ControllerRegistry.sol";
 import {DeskController} from "src/controller/DeskController.sol";
 import {MockOracle} from "src/oracles/MockOracle.sol";
+import {PythOracle} from "src/oracles/PythOracle.sol";
+import {IOracle} from "src/interfaces/IOracle.sol";
 // import {PoolInitializer} from "src/AMM/PoolInitializer.sol";
 
 contract DeployFUSD is Script {
@@ -41,11 +43,25 @@ contract DeployFUSD is Script {
             registry.grantRole(registry.ADMIN_ROLE(), admins[i]);
         }
 
-        // 4. Deploy mock oracle
-        MockOracle oracle = new MockOracle(deployer);
+        // 4. Deploy oracles
+        MockOracle mockOracle = new MockOracle(deployer);
+        
+        // Try to get Pyth address from environment, fallback to MockOracle
+        address pythAddress = vm.envOr("PYTH", address(0));
+        PythOracle pythOracle;
+        IOracle activeOracle;
+        
+        if (pythAddress != address(0)) {
+            console.log("Deploying with PythOracle using Pyth address:", pythAddress);
+            pythOracle = new PythOracle(pythAddress, deployer);
+            activeOracle = pythOracle;
+        } else {
+            console.log("PYTH env var not set, using MockOracle for deployment");
+            activeOracle = mockOracle;
+        }
 
-        // 5. Deploy desk controller
-        DeskController desk = new DeskController(address(token), address(oracle));
+        // 5. Deploy desk controller with active oracle
+        DeskController desk = new DeskController(address(token), address(activeOracle));
 
         // 6. Wire up permissions
         token.grantRole(token.CONTROLLER_ROLE(), address(desk));
@@ -57,6 +73,20 @@ contract DeployFUSD is Script {
         }
         for (uint256 i = 0; i < emergency.length; i++) {
             desk.grantEmergencyRole(emergency[i]);
+        }
+        
+        // 6b. Grant oracle admin and emergency roles
+        for (uint256 i = 0; i < admins.length; i++) {
+            mockOracle.grantRole(mockOracle.ADMIN_ROLE(), admins[i]);
+            if (address(pythOracle) != address(0)) {
+                pythOracle.grantRole(pythOracle.ADMIN_ROLE(), admins[i]);
+            }
+        }
+        for (uint256 i = 0; i < emergency.length; i++) {
+            mockOracle.grantRole(mockOracle.EMERGENCY_ROLE(), emergency[i]);
+            if (address(pythOracle) != address(0)) {
+                pythOracle.grantRole(pythOracle.EMERGENCY_ROLE(), emergency[i]);
+            }
         }
 
         // 7. Fund desk with initial ETH
@@ -74,11 +104,46 @@ contract DeployFUSD is Script {
 
         vm.stopBroadcast();
 
+        // Create deployments JSON file
+        string memory deploymentJson = string.concat(
+            "{\n",
+            '  "fusd": "', vm.toString(address(token)), '",\n',
+            '  "controllerRegistry": "', vm.toString(address(registry)), '",\n',
+            '  "mockOracle": "', vm.toString(address(mockOracle)), '",\n'
+        );
+        
+        if (address(pythOracle) != address(0)) {
+            deploymentJson = string.concat(
+                deploymentJson,
+                '  "pythOracle": "', vm.toString(address(pythOracle)), '",\n',
+                '  "pythAddress": "', vm.toString(pythAddress), '",\n'
+            );
+        }
+        
+        deploymentJson = string.concat(
+            deploymentJson,
+            '  "deskController": "', vm.toString(address(desk)), '",\n',
+            '  "activeOracle": "', vm.toString(address(activeOracle)), '"\n',
+            "}"
+        );
+
+        // Write deployments to file
+        string memory deploymentsPath = string.concat(vm.projectRoot(), "/script/config/deployments.json");
+        vm.writeFile(deploymentsPath, deploymentJson);
+
         // Log deployed addresses
         console.log("fUSD Token:", address(token));
         console.log("ControllerRegistry:", address(registry));
-        console.log("Oracle:", address(oracle));
+        console.log("MockOracle:", address(mockOracle));
+        if (address(pythOracle) != address(0)) {
+            console.log("PythOracle:", address(pythOracle));
+            console.log("Pyth Contract:", pythAddress);
+            console.log("Active Oracle: PythOracle");
+        } else {
+            console.log("Active Oracle: MockOracle");
+        }
         console.log("Trading Desk:", address(desk));
+        console.log("Deployments saved to:", deploymentsPath);
         // console.log("Pool:", IUniswapV2Factory(UNISWAP_FACTORY).getPair(address(token), WETH));
     }
 }

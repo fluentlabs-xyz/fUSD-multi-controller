@@ -7,7 +7,7 @@ import {stdJson} from "forge-std/StdJson.sol";
 import {fUSD} from "src/fUSD.sol";
 import {ControllerRegistry} from "src/controller/ControllerRegistry.sol";
 import {DeskController} from "src/controller/DeskController.sol";
-import {MockOracle} from "src/MockOracle.sol";
+import {MockOracle} from "src/oracles/MockOracle.sol";
 // import {PoolInitializer} from "src/AMM/PoolInitializer.sol";
 
 contract DeployFUSD is Script {

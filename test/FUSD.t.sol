@@ -6,7 +6,7 @@ import {console} from "forge-std/console.sol";
 import {fUSD} from "src/fUSD.sol";
 import {DeskController} from "src/controller/DeskController.sol";
 import {ControllerRegistry} from "src/controller/ControllerRegistry.sol";
-import {MockOracle} from "src/MockOracle.sol";
+import {MockOracle} from "src/oracles/MockOracle.sol";
 
 contract FUSDTest is Test {
     fUSD public stablecoin;

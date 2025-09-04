@@ -1,3 +1,9 @@
+curl -X GET "https://hermes.pyth.network/v2/updates/price/latest?ids[]=0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace" \
+  -H "accept: application/json" > pyth/pyth_update_data.json
+
+forge script script/UpdatePyth.s.sol:UpdatePyth --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast
+forge script script/DeployFUSD.s.sol:DeployFUSD --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast
+
 # 1. Verify fUSD Token (no constructor args)
 forge verify-contract 0x9d4103b780eefe35429110fab1e9acc8af1ae466 fUSD \
     --verifier blockscout \
@@ -20,3 +26,6 @@ forge verify-contract 0xe1E1AaC9615106baf57Dc7D16BfC3ffA2a48e437 DeskController 
     --verifier blockscout \
     --verifier-url https://testnet.fluentscan.xyz/api/ \
     --constructor-args $(cast abi-encode "constructor(address,address)" 0x9d4103b780eefe35429110fab1e9acc8af1ae466 0xad847715e6883d81bd0d70531a78ae856da7e7f4)
+
+# Extract and use in one command
+cast call $PYTH "getUpdateFee(bytes[])" "[[\"0x$(jq -r '.binary.data[0]' pyth/pyth_update_data.json)\"]]" --rpc-url $RPC_URL

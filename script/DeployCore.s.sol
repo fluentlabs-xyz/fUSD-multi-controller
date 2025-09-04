@@ -23,12 +23,10 @@ contract DeployCore is Script {
 
         // 1. Deploy token
         fUSD token = new fUSD();
-        console.log("fUSD Token deployed at:", address(token));
 
         // 2. Deploy registry
         address deployer = vm.addr(deployerPrivateKey);
         ControllerRegistry registry = new ControllerRegistry(deployer);
-        console.log("ControllerRegistry deployed at:", address(registry));
 
         // 3. Setup multiple admins
         for (uint256 i = 0; i < admins.length; i++) {
@@ -38,27 +36,19 @@ contract DeployCore is Script {
 
         vm.stopBroadcast();
 
-        // Create deployments JSON file
-        string memory deploymentJson = string.concat(
-            "{\n",
-            '  "fusd": "',
-            vm.toString(address(token)),
-            '",\n',
-            '  "controllerRegistry": "',
-            vm.toString(address(registry)),
-            '",\n',
-            '  "deployer": "',
-            vm.toString(deployer),
-            '"\n',
-            "}"
-        );
-
-        // Write deployments to file
-        string memory deploymentsPath = string.concat(vm.projectRoot(), "/script/config/deployments.json");
-        // forge-lint: disable-next-line(unsafe-cheatcode)
-        vm.writeFile(deploymentsPath, deploymentJson);
+        // Log addresses for manual deployment.json update
+        console.log("=== Add these addresses to script/config/deployments.json ===");
+        console.log("fUSD Token:", address(token));
+        console.log("ControllerRegistry:", address(registry));
+        console.log("Deployer:", deployer);
+        console.log("");
+        console.log("Example deployments.json:");
+        console.log("{");
+        console.log('  "fusd": "', address(token), '",');
+        console.log('  "controllerRegistry": "', address(registry), '",');
+        console.log('  "deployer": "', deployer, '",');
+        console.log("}");
 
         console.log("Core contracts deployed successfully!");
-        console.log("Deployments saved to:", deploymentsPath);
     }
 }

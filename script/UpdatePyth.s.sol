@@ -6,8 +6,15 @@ import {PythOracle} from "src/oracles/PythOracle.sol";
 
 contract UpdatePyth is Script {
     function run() external {
-        // Your PythOracle address
-        address pythOracle = vm.envAddress("PYTH");
+        // Load pythOracle address from deployments
+        string memory deploymentsPath = string.concat(vm.projectRoot(), "/script/config/deployments.json");
+        string memory deploymentsJson = vm.readFile(deploymentsPath);
+        address pythOracle = abi.decode(vm.parseJson(deploymentsJson, ".pythOracle"), (address));
+        
+        if (pythOracle == address(0)) {
+            revert("PythOracle not found in deployments. Run DeployOracles first.");
+        }
+        
         console.log("PythOracle address:", pythOracle);
         
         // Read the hex data from file

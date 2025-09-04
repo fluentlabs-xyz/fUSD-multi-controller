@@ -127,9 +127,15 @@ contract DeskController is IController, Pausable, AccessControl, ReentrancyGuard
         _grantRole(ADMIN_ROLE, msg.sender);
         _grantRole(EMERGENCY_ROLE, msg.sender);
 
-        // Initialize price tracking
-        lastPrice = oracle.getEthUsd();
-        lastPriceUpdate = block.timestamp;
+        // Initialize price tracking - handle case where oracle price might be stale
+        try oracle.getEthUsd() returns (uint256 price) {
+            lastPrice = price;
+            lastPriceUpdate = block.timestamp;
+        } catch {
+            // If oracle price is stale, initialize with 0 and let first operation update it
+            lastPrice = 0;
+            lastPriceUpdate = 0;
+        }
     }
 
     /**

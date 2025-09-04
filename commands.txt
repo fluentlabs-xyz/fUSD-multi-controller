@@ -1,8 +1,21 @@
 curl -X GET "https://hermes.pyth.network/v2/updates/price/latest?ids[]=0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace" \
   -H "accept: application/json" > pyth/pyth_update_data.json
 
-forge script script/UpdatePyth.s.sol:UpdatePyth --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast
+# Deploy everything together (not recommended)
 forge script script/DeployFUSD.s.sol:DeployFUSD --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast
+
+# Deploy the evergreen contracts
+forge script script/DeployCore.s.sol:DeployCore --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast
+
+# Deploy the oracles
+forge script script/DeployOracles.s.sol:DeployOracles --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast
+
+# Update the Pyth price feed
+forge script script/UpdatePyth.s.sol:UpdatePyth --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast
+
+# Deploy the controller(s)
+forge script script/DeployControllers.s.sol:DeployControllers --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast
+
 
 # 1. Verify fUSD Token (no constructor args)
 forge verify-contract 0x9d4103b780eefe35429110fab1e9acc8af1ae466 fUSD \
@@ -20,6 +33,12 @@ forge verify-contract 0xad847715e6883d81bd0d70531a78ae856da7e7f4 MockOracle \
     --verifier blockscout \
     --verifier-url https://testnet.fluentscan.xyz/api/ \
     --constructor-args $(cast abi-encode "constructor(address)" 0xB0eAbD3148bEeBaE261B82e467314ADfa3da66A5)
+
+# 5. Verify PythOracle
+forge verify-contract 0xE532Fa9ED4a6401595318724099e014F9F37db52 PythOracle \
+    --verifier blockscout \
+    --verifier-url https://testnet.fluentscan.xyz/api/ \
+    --constructor-args $(cast abi-encode "constructor(address,address)" 0x2880aB155794e7179c9eE2e38200202908C17B43 0xc5702f2D4125dBDDD88AAE3435545746FfdF18B1)
 
 # 4. Verify DeskController
 forge verify-contract 0xe1E1AaC9615106baf57Dc7D16BfC3ffA2a48e437 DeskController \

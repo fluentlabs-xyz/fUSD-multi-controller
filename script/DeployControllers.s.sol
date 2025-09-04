@@ -23,18 +23,19 @@ contract DeployControllers is Script {
 
         // Load existing deployments
         string memory deploymentsPath = string.concat(vm.projectRoot(), "/script/config/deployments.json");
-        // forge-lint: disable-next-line(unsafe-cheatcode)
         string memory deploymentsJson = vm.readFile(deploymentsPath);
         
         address fusdAddress = abi.decode(vm.parseJson(deploymentsJson, ".fusd"), (address));
         address registryAddress = abi.decode(vm.parseJson(deploymentsJson, ".controllerRegistry"), (address));
         address mockOracleAddress = abi.decode(vm.parseJson(deploymentsJson, ".mockOracle"), (address));
+        address pythOracleAddress = abi.decode(vm.parseJson(deploymentsJson, ".pythOracle"), (address));
         
-        // Try to get PythOracle address (may not exist)
-        address pythOracleAddress;
-        try vm.parseJson(deploymentsJson, ".pythOracle") returns (bytes memory pythOracleBytes) {
-            pythOracleAddress = abi.decode(pythOracleBytes, (address));
-        } catch {
+        // Validate required deployments exist
+        if (fusdAddress == address(0)) revert("fUSD not deployed. Run DeployCore first.");
+        if (registryAddress == address(0)) revert("ControllerRegistry not deployed. Run DeployCore first.");
+        if (mockOracleAddress == address(0)) revert("MockOracle not deployed. Run DeployOracles first.");
+        
+        if (pythOracleAddress == address(0)) {
             console.log("No PythOracle found, will use MockOracle");
         }
 
@@ -49,7 +50,6 @@ contract DeployControllers is Script {
             desk = new DeskController(fusdAddress, mockOracleAddress);
             console.log("Using MockOracle as active oracle");
         }
-        console.log("DeskController deployed at:", address(desk));
 
         // 2. Wire up permissions
         fUSD(fusdAddress).grantRole(fUSD(fusdAddress).CONTROLLER_ROLE(), address(desk));
@@ -75,16 +75,23 @@ contract DeployControllers is Script {
 
         vm.stopBroadcast();
 
-        // Update deployments JSON file
-        string memory newJson = deploymentsJson;
-        newJson = vm.serializeAddress(newJson, "deskController", address(desk));
-        newJson = vm.serializeAddress(newJson, "activeOracle", pythOracleAddress != address(0) ? pythOracleAddress : mockOracleAddress);
-
-        // Write updated deployments to file
-        // forge-lint: disable-next-line(unsafe-cheatcode)
-        vm.writeFile(deploymentsPath, newJson);
+        // Log addresses for manual deployment.json update
+        console.log("=== Add these addresses to script/config/deployments.json ===");
+        console.log("DeskController:", address(desk));
+        console.log("ActiveOracle:", pythOracleAddress != address(0) ? pythOracleAddress : mockOracleAddress);
+        console.log("");
+        console.log("Example deployments.json:");
+        console.log("{");
+        console.log('  "fusd": "0x...",');
+        console.log('  "controllerRegistry": "0x...",');
+        console.log('  "deployer": "0x...",');
+        console.log('  "mockOracle": "0x...",');
+        console.log('  "pythOracle": "0x...",');
+        console.log('  "pythAddress": "0x2880aB155794e7179c9eE2e38200202908C17B43",');
+        console.log('  "deskController": "', address(desk), '",');
+        console.log('  "activeOracle": "', pythOracleAddress != address(0) ? pythOracleAddress : mockOracleAddress, '"');
+        console.log("}");
 
         console.log("Controllers deployed successfully!");
-        console.log("Deployments updated in:", deploymentsPath);
     }
 }

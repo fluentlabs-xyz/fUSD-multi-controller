@@ -25,7 +25,7 @@ contract DeployOracles is Script {
         string memory deploymentsPath = string.concat(vm.projectRoot(), "/script/config/deployments.json");
         string memory deploymentsJson = vm.readFile(deploymentsPath);
         address deployer = abi.decode(vm.parseJson(deploymentsJson, ".deployer"), (address));
-        
+
         if (deployer == address(0)) {
             revert("DeployCore must be run first to set deployer address");
         }
@@ -38,7 +38,7 @@ contract DeployOracles is Script {
         // 2. Deploy PythOracle (if PYTH env var is set)
         address pythAddress = vm.envOr("PYTH", address(0));
         PythOracle pythOracle;
-        
+
         if (pythAddress != address(0)) {
             console2.log("Deploying PythOracle using Pyth address:", pythAddress);
             pythOracle = new PythOracle(pythAddress, deployer);
@@ -50,17 +50,17 @@ contract DeployOracles is Script {
         for (uint256 i = 0; i < admins.length; i++) {
             mockOracle.grantRole(mockOracle.ADMIN_ROLE(), admins[i]);
             console2.log("Granted MockOracle admin role to:", admins[i]);
-            
+
             if (address(pythOracle) != address(0)) {
                 pythOracle.grantRole(pythOracle.ADMIN_ROLE(), admins[i]);
                 console2.log("Granted PythOracle admin role to:", admins[i]);
             }
         }
-        
+
         for (uint256 i = 0; i < emergency.length; i++) {
             mockOracle.grantRole(mockOracle.EMERGENCY_ROLE(), emergency[i]);
             console2.log("Granted MockOracle emergency role to:", emergency[i]);
-            
+
             if (address(pythOracle) != address(0)) {
                 pythOracle.grantRole(pythOracle.EMERGENCY_ROLE(), emergency[i]);
                 console2.log("Granted PythOracle emergency role to:", emergency[i]);

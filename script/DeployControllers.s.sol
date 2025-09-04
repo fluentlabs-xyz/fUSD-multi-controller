@@ -24,17 +24,17 @@ contract DeployControllers is Script {
         // Load existing deployments
         string memory deploymentsPath = string.concat(vm.projectRoot(), "/script/config/deployments.json");
         string memory deploymentsJson = vm.readFile(deploymentsPath);
-        
+
         address fusdAddress = abi.decode(vm.parseJson(deploymentsJson, ".fusd"), (address));
         address registryAddress = abi.decode(vm.parseJson(deploymentsJson, ".controllerRegistry"), (address));
         address mockOracleAddress = abi.decode(vm.parseJson(deploymentsJson, ".mockOracle"), (address));
         address pythOracleAddress = abi.decode(vm.parseJson(deploymentsJson, ".pythOracle"), (address));
-        
+
         // Validate required deployments exist
         if (fusdAddress == address(0)) revert("fUSD not deployed. Run DeployCore first.");
         if (registryAddress == address(0)) revert("ControllerRegistry not deployed. Run DeployCore first.");
         if (mockOracleAddress == address(0)) revert("MockOracle not deployed. Run DeployOracles first.");
-        
+
         if (pythOracleAddress == address(0)) {
             console.log("No PythOracle found, will use MockOracle");
         }
@@ -63,7 +63,7 @@ contract DeployControllers is Script {
             desk.grantAdminRole(admins[i]);
             console.log("Granted DeskController admin role to:", admins[i]);
         }
-        
+
         for (uint256 i = 0; i < emergency.length; i++) {
             desk.grantEmergencyRole(emergency[i]);
             console.log("Granted DeskController emergency role to:", emergency[i]);

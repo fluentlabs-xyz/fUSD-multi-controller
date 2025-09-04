@@ -18,25 +18,25 @@ import {DeployControllers} from "./DeployControllers.s.sol";
 contract DeployFUSD is Script {
     function run() external {
         console.log("=== Starting Complete fUSD Deployment ===");
-        
+
         // Phase 1: Deploy Core Contracts
         console.log("\n--- Phase 1: Deploying Core Contracts ---");
         vm.broadcast();
         (bool success1,) = address(new DeployCore()).call(abi.encodeWithSignature("run()"));
         require(success1, "Core deployment failed");
-        
+
         // Phase 2: Deploy Oracles
         console.log("\n--- Phase 2: Deploying Oracles ---");
         vm.broadcast();
         (bool success2,) = address(new DeployOracles()).call(abi.encodeWithSignature("run()"));
         require(success2, "Oracles deployment failed");
-        
+
         // Phase 3: Deploy Controllers
         console.log("\n--- Phase 3: Deploying Controllers ---");
         vm.broadcast();
         (bool success3,) = address(new DeployControllers()).call(abi.encodeWithSignature("run()"));
         require(success3, "Controllers deployment failed");
-        
+
         console.log("\n=== Complete fUSD Deployment Finished Successfully! ===");
         console.log("All contracts deployed and configured.");
         console.log("Check script/config/deployments.json for all addresses.");

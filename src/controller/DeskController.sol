@@ -62,32 +62,52 @@ contract DeskController is IController, Pausable, AccessControl, ReentrancyGuard
 
     // Modifier for oracle health check
     modifier onlyHealthyOracle() {
-        require(oracle.isHealthy(), "Oracle unhealthy");
+        _onlyHealthyOracle();
         _;
     }
 
     // Modifier for admin operations
     modifier onlyAdmin() {
-        require(hasRole(ADMIN_ROLE, msg.sender), "DeskController: admin role required");
+        _onlyAdmin();
         _;
     }
 
     // Modifier for emergency operations
     modifier onlyEmergency() {
-        require(hasRole(EMERGENCY_ROLE, msg.sender), "DeskController: emergency role required");
+        _onlyEmergency();
         _;
     }
 
     // Modifier for minting operations
     modifier whenMintingEnabled() {
-        require(!mintingPaused, "Minting paused");
+        _whenMintingEnabled();
         _;
     }
 
     // Modifier for burning operations
     modifier whenBurningEnabled() {
-        require(!burningPaused, "Burning paused");
+        _whenBurningEnabled();
         _;
+    }
+
+    function _onlyHealthyOracle() internal view {
+        require(oracle.isHealthy(), "Oracle unhealthy");
+    }
+
+    function _onlyAdmin() internal view {
+        require(hasRole(ADMIN_ROLE, msg.sender), "DeskController: admin role required");
+    }
+
+    function _onlyEmergency() internal view {
+        require(hasRole(EMERGENCY_ROLE, msg.sender), "DeskController: emergency role required");
+    }
+
+    function _whenMintingEnabled() internal view {
+        require(!mintingPaused, "Minting paused");
+    }
+
+    function _whenBurningEnabled() internal view {
+        require(!burningPaused, "Burning paused");
     }
 
     /**

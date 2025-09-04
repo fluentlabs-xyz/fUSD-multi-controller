@@ -2,7 +2,6 @@
 pragma solidity ^0.8.19;
 
 import {Test} from "forge-std/Test.sol";
-import {console} from "forge-std/console.sol";
 import {MockOracle} from "src/oracles/MockOracle.sol";
 
 /**
@@ -142,7 +141,7 @@ contract MockOracleTest is Test {
         vm.prank(admin);
         oracle.setFluctuationRange(100); // 1%
 
-        uint256 basePrice = oracle.ETH_PRICE();
+        uint256 basePrice = oracle.ethPrice();
 
         // Get prices at different timestamps
         uint256 price1 = oracle.getPriceAtTime(300); // 5 minutes
@@ -293,7 +292,7 @@ contract MockOracleTest is Test {
         vm.stopPrank();
 
         // Verify final state
-        assertEq(oracle.ETH_PRICE(), 6000 * 1e6);
+        assertEq(oracle.ethPrice(), 6000 * 1e6);
         assertTrue(oracle.enableFluctuations());
         assertEq(oracle.fluctuationRange(), 200);
     }
@@ -310,7 +309,7 @@ contract MockOracleTest is Test {
 
         // Test fluctuations work with new base price
         uint256 price1 = oracle.getPriceAtTime(300);
-        uint256 price2 = oracle.getPriceAtTime(600);
+        //uint256 price2 = oracle.getPriceAtTime(600);
 
         // Should fluctuate around new base price
         uint256 newBase = 5000 * 1e6;

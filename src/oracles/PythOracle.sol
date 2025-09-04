@@ -15,7 +15,7 @@ contract PythOracle is IOracle, AccessControl {
     // Pyth Network ETH/USD price feed ID
     bytes32 public constant ETH_USD_PRICE_ID = 0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace;
 
-    IPyth public immutable pyth;
+    IPyth public immutable PYTH;
 
     // Role definitions
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
@@ -41,7 +41,7 @@ contract PythOracle is IOracle, AccessControl {
         require(_pyth != address(0), "PythOracle: zero pyth address");
         require(_admin != address(0), "PythOracle: zero admin address");
 
-        pyth = IPyth(_pyth);
+        PYTH = IPyth(_pyth);
 
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
         _grantRole(ADMIN_ROLE, _admin);
@@ -56,7 +56,7 @@ contract PythOracle is IOracle, AccessControl {
         require(!emergencyPause, "PythOracle: emergency pause active");
 
         // Get price with staleness check
-        PythStructs.Price memory price = pyth.getPriceNoOlderThan(ETH_USD_PRICE_ID, maxPriceAge);
+        PythStructs.Price memory price = PYTH.getPriceNoOlderThan(ETH_USD_PRICE_ID, maxPriceAge);
 
         return _convertPythPrice(price);
     }
@@ -68,7 +68,7 @@ contract PythOracle is IOracle, AccessControl {
     function isHealthy() external view override returns (bool) {
         if (emergencyPause) return false;
 
-        try pyth.getPriceNoOlderThan(ETH_USD_PRICE_ID, maxPriceAge) returns (PythStructs.Price memory price) {
+        try PYTH.getPriceNoOlderThan(ETH_USD_PRICE_ID, maxPriceAge) returns (PythStructs.Price memory price) {
             // Check price validity
             if (price.price <= 0) return false;
 
@@ -96,9 +96,17 @@ contract PythOracle is IOracle, AccessControl {
         // Convert to 6 decimal places
         if (expo >= -6) {
             // Price has fewer decimals than needed, multiply
+            // Safe cast: expo >= -6 ensures 6 + expo >= 0
+            // Pyth expo values are typically -100 to +100, well within uint32 range
+            require(6 + expo >= 0, "PythOracle: invalid expo for multiplication");
+            // forge-lint: disable-next-line(unsafe-typecast)
             return priceAbs * (10 ** uint32(6 + expo));
         } else {
             // Price has more decimals than needed, divide
+            // Safe cast: expo < -6 ensures -expo - 6 > 0
+            // Pyth expo values are typically -100 to +100, well within uint32 range
+            require(-expo - 6 > 0, "PythOracle: invalid expo for division");
+            // forge-lint: disable-next-line(unsafe-typecast)
             return priceAbs / (10 ** uint32(-expo - 6));
         }
     }
@@ -111,7 +119,7 @@ contract PythOracle is IOracle, AccessControl {
      * @return publishTime When price was published
      */
     function getRawPythPrice() external view returns (int64 price, uint64 conf, int32 expo, uint256 publishTime) {
-        PythStructs.Price memory pythPrice = pyth.getPriceUnsafe(ETH_USD_PRICE_ID);
+        PythStructs.Price memory pythPrice = PYTH.getPriceUnsafe(ETH_USD_PRICE_ID);
         return (pythPrice.price, pythPrice.conf, pythPrice.expo, pythPrice.publishTime);
     }
 
@@ -120,7 +128,7 @@ contract PythOracle is IOracle, AccessControl {
      * @return Age of current price in seconds
      */
     function getPriceAge() external view returns (uint256) {
-        PythStructs.Price memory price = pyth.getPriceUnsafe(ETH_USD_PRICE_ID);
+        PythStructs.Price memory price = PYTH.getPriceUnsafe(ETH_USD_PRICE_ID);
         return block.timestamp - price.publishTime;
     }
 
@@ -129,7 +137,7 @@ contract PythOracle is IOracle, AccessControl {
      * @return Confidence ratio (10000 = 100%)
      */
     function getConfidenceRatio() external view returns (uint256) {
-        PythStructs.Price memory price = pyth.getPriceUnsafe(ETH_USD_PRICE_ID);
+        PythStructs.Price memory price = PYTH.getPriceUnsafe(ETH_USD_PRICE_ID);
         if (price.price <= 0) return type(uint256).max;
 
         uint256 priceAbs = uint256(uint64(price.price));
@@ -141,11 +149,11 @@ contract PythOracle is IOracle, AccessControl {
      * @param priceUpdateData Encoded price update data from Pyth API
      */
     function updatePriceFeeds(bytes[] calldata priceUpdateData) external payable {
-        uint256 fee = pyth.getUpdateFee(priceUpdateData);
+        uint256 fee = PYTH.getUpdateFee(priceUpdateData);
         require(msg.value >= fee, "PythOracle: insufficient fee");
 
         // Update prices with exact fee
-        pyth.updatePriceFeeds{value: fee}(priceUpdateData);
+        PYTH.updatePriceFeeds{value: fee}(priceUpdateData);
 
         // Refund excess ETH
         uint256 excess = msg.value - fee;
@@ -163,11 +171,11 @@ contract PythOracle is IOracle, AccessControl {
      * @return Fresh ETH/USD price with 6 decimals
      */
     function updateAndGetPrice(bytes[] calldata priceUpdateData) external payable returns (uint256) {
-        uint256 fee = pyth.getUpdateFee(priceUpdateData);
+        uint256 fee = PYTH.getUpdateFee(priceUpdateData);
         require(msg.value >= fee, "PythOracle: insufficient fee");
 
         // Update prices
-        pyth.updatePriceFeeds{value: fee}(priceUpdateData);
+        PYTH.updatePriceFeeds{value: fee}(priceUpdateData);
 
         // Refund excess
         uint256 excess = msg.value - fee;
@@ -179,7 +187,7 @@ contract PythOracle is IOracle, AccessControl {
         emit PriceFeedsUpdated(msg.sender, fee, excess);
 
         // Return fresh price immediately
-        PythStructs.Price memory price = pyth.getPriceNoOlderThan(ETH_USD_PRICE_ID, maxPriceAge);
+        PythStructs.Price memory price = PYTH.getPriceNoOlderThan(ETH_USD_PRICE_ID, maxPriceAge);
         return _convertPythPrice(price);
     }
 
@@ -189,7 +197,7 @@ contract PythOracle is IOracle, AccessControl {
      * @return Fee amount in wei required for the update
      */
     function getUpdateFee(bytes[] calldata priceUpdateData) external view returns (uint256) {
-        return pyth.getUpdateFee(priceUpdateData);
+        return PYTH.getUpdateFee(priceUpdateData);
     }
 
     /**

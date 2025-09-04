@@ -10,7 +10,7 @@ import {AccessControl} from "lib/openzeppelin-contracts/contracts/access/AccessC
  * Includes deterministic fluctuations and health status for testing various scenarios
  */
 contract MockOracle is IOracle, AccessControl {
-    uint256 public ETH_PRICE = 4500 * 1e6; // $4500 with 6 decimals
+    uint256 public ethPrice = 4500 * 1e6; // $4500 with 6 decimals
     bool public enableFluctuations = false;
     uint256 public fluctuationRange = 50; // 0.5% = 50 basis points
 
@@ -45,7 +45,7 @@ contract MockOracle is IOracle, AccessControl {
      * @return Price with fluctuations applied
      */
     function _calculatePriceWithFluctuations(uint256 timestamp) internal view returns (uint256) {
-        if (!enableFluctuations) return ETH_PRICE;
+        if (!enableFluctuations) return ethPrice;
 
         // Deterministic fluctuations for testing
         // Changes every 5 minutes (300 seconds) for predictable testing
@@ -53,7 +53,7 @@ contract MockOracle is IOracle, AccessControl {
 
         // Generate a more meaningful deviation that actually uses the full range
         // Convert basis points to actual percentage and apply to price
-        uint256 maxDeviation = (ETH_PRICE * fluctuationRange) / 10000; // Convert basis points to actual price deviation
+        uint256 maxDeviation = (ethPrice * fluctuationRange) / 10000; // Convert basis points to actual price deviation
         uint256 deviation = seed % (maxDeviation * 2 + 1); // +1 to include maxDeviation
         uint256 priceChange = deviation > maxDeviation ? maxDeviation : deviation;
 
@@ -61,9 +61,9 @@ contract MockOracle is IOracle, AccessControl {
         bool priceGoesUp = (seed % 2) == 0;
 
         if (priceGoesUp) {
-            return ETH_PRICE + priceChange;
+            return ethPrice + priceChange;
         } else {
-            return ETH_PRICE > priceChange ? ETH_PRICE - priceChange : ETH_PRICE / 2; // Prevent negative prices
+            return ethPrice > priceChange ? ethPrice - priceChange : ethPrice / 2; // Prevent negative prices
         }
     }
 
@@ -74,7 +74,7 @@ contract MockOracle is IOracle, AccessControl {
     function getEthUsd() external view returns (uint256) {
         require(isOracleHealthy, "MockOracle: oracle unhealthy");
 
-        if (!enableFluctuations) return ETH_PRICE;
+        if (!enableFluctuations) return ethPrice;
 
         return _calculatePriceWithFluctuations(block.timestamp);
     }
@@ -150,7 +150,7 @@ contract MockOracle is IOracle, AccessControl {
         view
         returns (uint256 basePrice, bool fluctuationsEnabled, uint256 range, bool healthy)
     {
-        return (ETH_PRICE, enableFluctuations, fluctuationRange, isOracleHealthy);
+        return (ethPrice, enableFluctuations, fluctuationRange, isOracleHealthy);
     }
 
     /**
@@ -176,8 +176,8 @@ contract MockOracle is IOracle, AccessControl {
     function setPrice(uint256 newPrice) external onlyRole(ADMIN_ROLE) {
         require(newPrice > 0, "MockOracle: price must be positive");
 
-        uint256 oldPrice = ETH_PRICE;
-        ETH_PRICE = newPrice;
+        uint256 oldPrice = ethPrice;
+        ethPrice = newPrice;
 
         emit PriceUpdated(oldPrice, newPrice);
     }

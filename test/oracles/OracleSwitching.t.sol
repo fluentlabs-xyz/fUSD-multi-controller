@@ -2,7 +2,6 @@
 pragma solidity ^0.8.19;
 
 import {Test} from "forge-std/Test.sol";
-import {console} from "forge-std/console.sol";
 import {fUSD} from "src/fUSD.sol";
 import {DeskController} from "src/controller/DeskController.sol";
 import {MockOracle} from "src/oracles/MockOracle.sol";

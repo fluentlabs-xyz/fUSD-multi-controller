@@ -25,6 +25,7 @@ contract DeployFUSD is Script {
         //   "emergency": ["0x..."]
         // }
         string memory configPath = string.concat(vm.projectRoot(), "/script/config/admins.json");
+        // forge-lint: disable-next-line(unsafe-cheatcode)
         string memory json = vm.readFile(configPath);
         address[] memory admins = abi.decode(vm.parseJson(json, ".admins"), (address[]));
         address[] memory emergency = abi.decode(vm.parseJson(json, ".emergency"), (address[]));
@@ -143,6 +144,7 @@ contract DeployFUSD is Script {
 
         // Write deployments to file
         string memory deploymentsPath = string.concat(vm.projectRoot(), "/script/config/deployments.json");
+        // forge-lint: disable-next-line(unsafe-cheatcode)
         vm.writeFile(deploymentsPath, deploymentJson);
 
         // Log deployed addresses

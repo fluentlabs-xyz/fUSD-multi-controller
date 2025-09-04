@@ -20,7 +20,7 @@ contract FUSDTest is Test {
     address public emergency = address(0x4);
 
     // Change from constant to regular variable
-    uint256 public ETH_PRICE = 4500 * 1e6; // $4500 with 6 decimals
+    uint256 public ethPrice = 4500 * 1e6; // $4500 with 6 decimals
     uint256 public constant INITIAL_ETH = 10 ether;
 
     function setUp() public {
@@ -106,7 +106,7 @@ contract FUSDTest is Test {
 
     function test_MintFunctionality() public {
         uint256 mintAmount = 1 ether;
-        uint256 expectedFusd = (mintAmount * ETH_PRICE) / 1e18;
+        uint256 expectedFusd = (mintAmount * ethPrice) / 1e18;
 
         vm.deal(user1, mintAmount);
         vm.prank(user1);
@@ -119,7 +119,7 @@ contract FUSDTest is Test {
     function test_BurnFunctionality() public {
         // First mint some fUSD
         uint256 mintAmount = 1 ether;
-        uint256 expectedFusd = (mintAmount * ETH_PRICE) / 1e18;
+        uint256 expectedFusd = (mintAmount * ethPrice) / 1e18;
 
         vm.deal(user1, mintAmount);
         vm.prank(user1);

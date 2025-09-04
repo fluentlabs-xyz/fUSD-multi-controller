@@ -40,7 +40,7 @@ contract FUSDTest is Test {
         // Grant ADMIN_ROLE and EMERGENCY_ROLE directly using the test contract's DEFAULT_ADMIN_ROLE
         desk.grantRole(desk.ADMIN_ROLE(), admin);
         desk.grantRole(desk.EMERGENCY_ROLE(), emergency);
-        
+
         // Oracle roles: admin already has all roles from constructor
 
         // Set a very short cooldown for testing (1 second instead of 1 day)

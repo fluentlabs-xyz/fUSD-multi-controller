@@ -14,13 +14,13 @@ import {AccessControl} from "lib/openzeppelin-contracts/contracts/access/AccessC
 contract PythOracle is IOracle, AccessControl {
     // Pyth Network ETH/USD price feed ID
     bytes32 public constant ETH_USD_PRICE_ID = 0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace;
-    
+
     IPyth public immutable pyth;
-    
+
     // Role definitions
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 public constant EMERGENCY_ROLE = keccak256("EMERGENCY_ROLE");
-    
+
     // Configuration parameters
     uint256 public maxPriceAge = 3600; // 1 hour max staleness
     uint256 public maxConfidenceRatio = 1000; // Max 10% confidence interval (in basis points)
@@ -32,7 +32,6 @@ contract PythOracle is IOracle, AccessControl {
     event EmergencyPauseToggled(bool paused);
     event PriceFeedsUpdated(address indexed updater, uint256 fee, uint256 refund);
 
-
     /**
      * @dev Constructor
      * @param _pyth Address of the Pyth contract
@@ -41,9 +40,9 @@ contract PythOracle is IOracle, AccessControl {
     constructor(address _pyth, address _admin) {
         require(_pyth != address(0), "PythOracle: zero pyth address");
         require(_admin != address(0), "PythOracle: zero admin address");
-        
+
         pyth = IPyth(_pyth);
-        
+
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
         _grantRole(ADMIN_ROLE, _admin);
         _grantRole(EMERGENCY_ROLE, _admin);
@@ -55,10 +54,10 @@ contract PythOracle is IOracle, AccessControl {
      */
     function getEthUsd() external view override returns (uint256) {
         require(!emergencyPause, "PythOracle: emergency pause active");
-        
+
         // Get price with staleness check
         PythStructs.Price memory price = pyth.getPriceNoOlderThan(ETH_USD_PRICE_ID, maxPriceAge);
-        
+
         return _convertPythPrice(price);
     }
 
@@ -68,15 +67,15 @@ contract PythOracle is IOracle, AccessControl {
      */
     function isHealthy() external view override returns (bool) {
         if (emergencyPause) return false;
-        
+
         try pyth.getPriceNoOlderThan(ETH_USD_PRICE_ID, maxPriceAge) returns (PythStructs.Price memory price) {
             // Check price validity
             if (price.price <= 0) return false;
-            
+
             // Check confidence ratio
             uint256 priceAbs = uint256(uint64(price.price));
             uint256 confidenceRatio = (price.conf * 10000) / priceAbs; // Basis points
-            
+
             return confidenceRatio <= maxConfidenceRatio;
         } catch {
             return false;
@@ -90,10 +89,10 @@ contract PythOracle is IOracle, AccessControl {
      */
     function _convertPythPrice(PythStructs.Price memory price) internal pure returns (uint256) {
         require(price.price > 0, "PythOracle: invalid price");
-        
+
         uint256 priceAbs = uint256(uint64(price.price));
         int32 expo = price.expo;
-        
+
         // Convert to 6 decimal places
         if (expo >= -6) {
             // Price has fewer decimals than needed, multiply
@@ -132,7 +131,7 @@ contract PythOracle is IOracle, AccessControl {
     function getConfidenceRatio() external view returns (uint256) {
         PythStructs.Price memory price = pyth.getPriceUnsafe(ETH_USD_PRICE_ID);
         if (price.price <= 0) return type(uint256).max;
-        
+
         uint256 priceAbs = uint256(uint64(price.price));
         return (price.conf * 10000) / priceAbs;
     }
@@ -144,20 +143,20 @@ contract PythOracle is IOracle, AccessControl {
     function updatePriceFeeds(bytes[] calldata priceUpdateData) external payable {
         uint256 fee = pyth.getUpdateFee(priceUpdateData);
         require(msg.value >= fee, "PythOracle: insufficient fee");
-        
+
         // Update prices with exact fee
         pyth.updatePriceFeeds{value: fee}(priceUpdateData);
-        
+
         // Refund excess ETH
         uint256 excess = msg.value - fee;
         if (excess > 0) {
-            (bool success, ) = msg.sender.call{value: excess}("");
+            (bool success,) = msg.sender.call{value: excess}("");
             require(success, "PythOracle: refund failed");
         }
-        
+
         emit PriceFeedsUpdated(msg.sender, fee, excess);
     }
-    
+
     /**
      * @dev Update price feeds and immediately return fresh ETH/USD price
      * @param priceUpdateData Encoded price update data from Pyth API
@@ -166,24 +165,24 @@ contract PythOracle is IOracle, AccessControl {
     function updateAndGetPrice(bytes[] calldata priceUpdateData) external payable returns (uint256) {
         uint256 fee = pyth.getUpdateFee(priceUpdateData);
         require(msg.value >= fee, "PythOracle: insufficient fee");
-        
+
         // Update prices
         pyth.updatePriceFeeds{value: fee}(priceUpdateData);
-        
+
         // Refund excess
         uint256 excess = msg.value - fee;
         if (excess > 0) {
-            (bool success, ) = msg.sender.call{value: excess}("");
+            (bool success,) = msg.sender.call{value: excess}("");
             require(success, "PythOracle: refund failed");
         }
-        
+
         emit PriceFeedsUpdated(msg.sender, fee, excess);
-        
+
         // Return fresh price immediately
         PythStructs.Price memory price = pyth.getPriceNoOlderThan(ETH_USD_PRICE_ID, maxPriceAge);
         return _convertPythPrice(price);
     }
-    
+
     /**
      * @dev Get the fee required to update price feeds
      * @param priceUpdateData Encoded price update data from Pyth API
@@ -199,10 +198,10 @@ contract PythOracle is IOracle, AccessControl {
      */
     function setMaxPriceAge(uint256 newAge) external onlyRole(ADMIN_ROLE) {
         require(newAge > 0 && newAge <= 86400, "PythOracle: invalid age"); // Max 24 hours
-        
+
         uint256 oldAge = maxPriceAge;
         maxPriceAge = newAge;
-        
+
         emit PriceAgeUpdated(oldAge, newAge);
     }
 
@@ -212,13 +211,12 @@ contract PythOracle is IOracle, AccessControl {
      */
     function setMaxConfidenceRatio(uint256 newRatio) external onlyRole(ADMIN_ROLE) {
         require(newRatio > 0 && newRatio <= 5000, "PythOracle: invalid ratio"); // Max 50%
-        
+
         uint256 oldRatio = maxConfidenceRatio;
         maxConfidenceRatio = newRatio;
-        
+
         emit ConfidenceRatioUpdated(oldRatio, newRatio);
     }
-
 
     /**
      * @dev Toggle emergency pause
@@ -235,7 +233,11 @@ contract PythOracle is IOracle, AccessControl {
      * @return _maxConfidenceRatio Maximum allowed confidence ratio
      * @return _emergencyPause Emergency pause status
      */
-    function getConfig() external view returns (uint256 _maxPriceAge, uint256 _maxConfidenceRatio, bool _emergencyPause) {
+    function getConfig()
+        external
+        view
+        returns (uint256 _maxPriceAge, uint256 _maxConfidenceRatio, bool _emergencyPause)
+    {
         return (maxPriceAge, maxConfidenceRatio, emergencyPause);
     }
 

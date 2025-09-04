@@ -45,12 +45,12 @@ contract DeployFUSD is Script {
 
         // 4. Deploy oracles
         MockOracle mockOracle = new MockOracle(deployer);
-        
+
         // Try to get Pyth address from environment, fallback to MockOracle
         address pythAddress = vm.envOr("PYTH", address(0));
         PythOracle pythOracle;
         IOracle activeOracle;
-        
+
         if (pythAddress != address(0)) {
             console.log("Deploying with PythOracle using Pyth address:", pythAddress);
             pythOracle = new PythOracle(pythAddress, deployer);
@@ -74,7 +74,7 @@ contract DeployFUSD is Script {
         for (uint256 i = 0; i < emergency.length; i++) {
             desk.grantEmergencyRole(emergency[i]);
         }
-        
+
         // 6b. Grant oracle admin and emergency roles
         for (uint256 i = 0; i < admins.length; i++) {
             mockOracle.grantRole(mockOracle.ADMIN_ROLE(), admins[i]);
@@ -107,23 +107,37 @@ contract DeployFUSD is Script {
         // Create deployments JSON file
         string memory deploymentJson = string.concat(
             "{\n",
-            '  "fusd": "', vm.toString(address(token)), '",\n',
-            '  "controllerRegistry": "', vm.toString(address(registry)), '",\n',
-            '  "mockOracle": "', vm.toString(address(mockOracle)), '",\n'
+            '  "fusd": "',
+            vm.toString(address(token)),
+            '",\n',
+            '  "controllerRegistry": "',
+            vm.toString(address(registry)),
+            '",\n',
+            '  "mockOracle": "',
+            vm.toString(address(mockOracle)),
+            '",\n'
         );
-        
+
         if (address(pythOracle) != address(0)) {
             deploymentJson = string.concat(
                 deploymentJson,
-                '  "pythOracle": "', vm.toString(address(pythOracle)), '",\n',
-                '  "pythAddress": "', vm.toString(pythAddress), '",\n'
+                '  "pythOracle": "',
+                vm.toString(address(pythOracle)),
+                '",\n',
+                '  "pythAddress": "',
+                vm.toString(pythAddress),
+                '",\n'
             );
         }
-        
+
         deploymentJson = string.concat(
             deploymentJson,
-            '  "deskController": "', vm.toString(address(desk)), '",\n',
-            '  "activeOracle": "', vm.toString(address(activeOracle)), '"\n',
+            '  "deskController": "',
+            vm.toString(address(desk)),
+            '",\n',
+            '  "activeOracle": "',
+            vm.toString(address(activeOracle)),
+            '"\n',
             "}"
         );
 

@@ -27,14 +27,13 @@ contract MockOracle is IOracle, AccessControl {
     event HealthStatusUpdated(bool oldStatus, bool newStatus);
     event PriceUpdated(uint256 oldPrice, uint256 newPrice);
 
-
     /**
      * @dev Constructor
      * @param _admin Initial admin address
      */
     constructor(address _admin) {
         require(_admin != address(0), "MockOracle: zero address");
-        
+
         _grantRole(DEFAULT_ADMIN_ROLE, _admin);
         _grantRole(ADMIN_ROLE, _admin);
         _grantRole(EMERGENCY_ROLE, _admin);
@@ -121,7 +120,6 @@ contract MockOracle is IOracle, AccessControl {
 
         emit HealthStatusUpdated(oldStatus, healthy);
     }
-
 
     /**
      * @dev Get current price with fluctuations (if enabled)

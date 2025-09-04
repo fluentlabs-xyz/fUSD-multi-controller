@@ -410,26 +410,26 @@ contract DeskController is IController, Pausable, AccessControl, ReentrancyGuard
     function proposeOracleUpdate(address newOracle) external onlyAdmin {
         require(newOracle != address(0), "Oracle: zero address");
         require(newOracle != address(oracle), "Oracle: same address");
-        
+
         // Validate the new oracle implements the interface
         try IOracle(newOracle).getEthUsd() returns (uint256 price) {
             require(price > 0, "Oracle: invalid price");
         } catch {
             revert("Oracle: invalid interface");
         }
-        
+
         try IOracle(newOracle).isHealthy() returns (bool healthy) {
             require(healthy, "Oracle: not healthy");
         } catch {
             revert("Oracle: invalid interface");
         }
-        
+
         pendingOracle = newOracle;
         oracleUpdateTimestamp = block.timestamp + ORACLE_UPDATE_DELAY;
-        
+
         emit OracleUpdateProposed(address(oracle), newOracle, oracleUpdateTimestamp);
     }
-    
+
     /**
      * @dev Execute the pending oracle update after timelock
      */
@@ -437,31 +437,31 @@ contract DeskController is IController, Pausable, AccessControl, ReentrancyGuard
         require(pendingOracle != address(0), "No pending oracle");
         require(block.timestamp >= oracleUpdateTimestamp, "Timelock not expired");
         require(block.timestamp <= oracleUpdateTimestamp + 1 days, "Update expired");
-        
+
         address oldOracle = address(oracle);
         oracle = IOracle(pendingOracle);
-        
+
         // Update price tracking with new oracle
         lastPrice = oracle.getEthUsd();
         lastPriceUpdate = block.timestamp;
-        
+
         // Clear pending state
         pendingOracle = address(0);
         oracleUpdateTimestamp = 0;
-        
+
         emit OracleUpdated(oldOracle, address(oracle));
     }
-    
+
     /**
      * @dev Cancel a pending oracle update
      */
     function cancelOracleUpdate() external onlyAdmin {
         require(pendingOracle != address(0), "No pending oracle");
-        
+
         address cancelled = pendingOracle;
         pendingOracle = address(0);
         oracleUpdateTimestamp = 0;
-        
+
         emit OracleUpdateCancelled(cancelled);
     }
 

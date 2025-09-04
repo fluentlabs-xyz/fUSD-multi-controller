@@ -32,7 +32,6 @@ contract FUSDTest is Test {
         registry = new ControllerRegistry(admin);
 
         // Setup permissions
-        console.log("Setting up permissions...");
         stablecoin.grantRole(stablecoin.CONTROLLER_ROLE(), address(desk));
 
         // Remove the CONTROLLER_ROLE from the test contract since we don't need it
@@ -41,6 +40,8 @@ contract FUSDTest is Test {
         // Grant ADMIN_ROLE and EMERGENCY_ROLE directly using the test contract's DEFAULT_ADMIN_ROLE
         desk.grantRole(desk.ADMIN_ROLE(), admin);
         desk.grantRole(desk.EMERGENCY_ROLE(), emergency);
+        
+        // Oracle roles: admin already has all roles from constructor
 
         // Set a very short cooldown for testing (1 second instead of 1 day)
         vm.prank(admin);
@@ -200,7 +201,7 @@ contract FUSDTest is Test {
         // Test healthy oracle
         assertTrue(desk.isOracleHealthy());
 
-        // Test unhealthy oracle
+        // Test unhealthy oracle (using admin since they have all oracle roles)
         vm.prank(admin);
         oracle.setHealthStatus(false);
 

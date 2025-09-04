@@ -183,4 +183,60 @@ contract MockOracle is IOracle, AccessControl {
 
         emit PriceUpdated(oldPrice, newPrice);
     }
+
+    // ===== ROLE MANAGEMENT FUNCTIONS =====
+
+    /**
+     * @dev Grant admin role to an address (only DEFAULT_ADMIN_ROLE can call)
+     * @param account Address to grant admin role to
+     */
+    function grantAdminRole(address account) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(account != address(0), "MockOracle: zero address");
+        _grantRole(ADMIN_ROLE, account);
+    }
+
+    /**
+     * @dev Revoke admin role from an address (only DEFAULT_ADMIN_ROLE can call)
+     * @param account Address to revoke admin role from
+     */
+    function revokeAdminRole(address account) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(account != address(0), "MockOracle: zero address");
+        _revokeRole(ADMIN_ROLE, account);
+    }
+
+    /**
+     * @dev Grant emergency role to an address (only DEFAULT_ADMIN_ROLE can call)
+     * @param account Address to grant emergency role to
+     */
+    function grantEmergencyRole(address account) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(account != address(0), "MockOracle: zero address");
+        _grantRole(EMERGENCY_ROLE, account);
+    }
+
+    /**
+     * @dev Revoke emergency role from an address (only DEFAULT_ADMIN_ROLE can call)
+     * @param account Address to revoke emergency role from
+     */
+    function revokeEmergencyRole(address account) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(account != address(0), "MockOracle: zero address");
+        _revokeRole(EMERGENCY_ROLE, account);
+    }
+
+    /**
+     * @dev Check if an address has admin role
+     * @param account Address to check
+     * @return True if address has admin role
+     */
+    function hasAdminRole(address account) external view returns (bool) {
+        return hasRole(ADMIN_ROLE, account);
+    }
+
+    /**
+     * @dev Check if an address has emergency role
+     * @param account Address to check
+     * @return True if address has emergency role
+     */
+    function hasEmergencyRole(address account) external view returns (bool) {
+        return hasRole(EMERGENCY_ROLE, account);
+    }
 }

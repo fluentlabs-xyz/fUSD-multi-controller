@@ -18,14 +18,22 @@ DEFAULT_ADMIN_ROLE (0x00)
 │   └── CONTROLLER_ROLE
 ├── Controller Registry
 │   └── ADMIN_ROLE
-└── Desk Controller
-    ├── ADMIN_ROLE
-    └── EMERGENCY_ROLE
+├── Desk Controller
+│   ├── ADMIN_ROLE
+│   └── EMERGENCY_ROLE
+└── Oracle System
+    ├── MockOracle
+    │   ├── ADMIN_ROLE
+    │   └── EMERGENCY_ROLE
+    └── PythOracle
+        ├── ADMIN_ROLE
+        └── EMERGENCY_ROLE
 ```
 
 ### Role Definitions
 
 #### 1. DEFAULT_ADMIN_ROLE
+
 - **Purpose**: Root administrator with role management capabilities
 - **Capabilities**:
   - Grant/revoke other roles
@@ -34,6 +42,7 @@ DEFAULT_ADMIN_ROLE (0x00)
 - **Best Practice**: Use multi-signature wallet
 
 #### 2. CONTROLLER_ROLE (Token Contract)
+
 - **Purpose**: Authorize contracts to mint/burn fUSD
 - **Capabilities**:
   - Call `mint()` function
@@ -41,6 +50,7 @@ DEFAULT_ADMIN_ROLE (0x00)
 - **Holders**: Controller contracts only (never EOAs)
 
 #### 3. ADMIN_ROLE (Controllers & Registry)
+
 - **Purpose**: Operational management
 - **Capabilities**:
   - Update configuration parameters
@@ -50,6 +60,7 @@ DEFAULT_ADMIN_ROLE (0x00)
 - **Holders**: Operational team members
 
 #### 4. EMERGENCY_ROLE (Controllers)
+
 - **Purpose**: Emergency response capabilities
 - **Capabilities**:
   - Emergency ETH withdrawal
@@ -57,11 +68,48 @@ DEFAULT_ADMIN_ROLE (0x00)
   - Critical intervention functions
 - **Holders**: Security team, emergency responders
 
+#### 5. Oracle System Roles
+
+Both MockOracle and PythOracle implement the same AccessControl patterns:
+
+**ADMIN_ROLE (Oracles)**:
+
+- **Purpose**: Oracle configuration and management
+- **MockOracle Capabilities**:
+  - Set ETH price
+  - Configure fluctuations and ranges
+  - Control health status
+- **PythOracle Capabilities**:
+  - Set maximum price age
+  - Update price feed configurations
+  - Control staleness tolerance
+- **Holders**: Same administrators as controllers for consistency
+
+**EMERGENCY_ROLE (Oracles)**:
+
+- **Purpose**: Emergency oracle intervention
+- **Capabilities**:
+  - Simulate oracle failures (MockOracle)
+  - Emergency price updates (PythOracle)
+  - Critical health status changes
+- **Holders**: Emergency response team
+
+**AccessControl Wrapper Functions**:
+Both oracles provide wrapper functions matching controller patterns:
+
+```solidity
+function grantAdminRole(address account) external onlyRole(DEFAULT_ADMIN_ROLE)
+function revokeAdminRole(address account) external onlyRole(DEFAULT_ADMIN_ROLE)
+function grantEmergencyRole(address account) external onlyRole(DEFAULT_ADMIN_ROLE)
+function revokeEmergencyRole(address account) external onlyRole(DEFAULT_ADMIN_ROLE)
+```
+
 ## Multi-Admin Architecture
 
 ### Rationale
 
 The system supports multiple admins to ensure:
+
 1. **24/7 Coverage**: Admins in different time zones
 2. **Redundancy**: No single point of failure
 3. **Specialization**: Different admins for different responsibilities
@@ -83,6 +131,7 @@ for (uint i = 0; i < emergency.length; i++) {
 ### Configuration File
 
 `script/config/admins.json`:
+
 ```json
 {
     "admins": [
@@ -176,6 +225,7 @@ function setRoleLimit(bytes32 role, uint256 limit) external onlyRole(DEFAULT_ADM
 ### Emergency Role Capabilities
 
 1. **Emergency Withdrawal**
+
    ```solidity
    function emergencyWithdraw(uint256 amount) external onlyEmergency {
        require(amount <= address(this).balance, "Insufficient balance");
@@ -186,6 +236,7 @@ function setRoleLimit(bytes32 role, uint256 limit) external onlyRole(DEFAULT_ADM
    ```
 
 2. **Circuit Breakers**
+
    ```solidity
    function emergencyPause() external onlyEmergency {
        _pause();
@@ -241,32 +292,6 @@ function _grantRole(bytes32 role, address account) internal override {
     super._grantRole(role, account);
     emit RoleGranted(role, account, _msgSender());
 }
-```
-
-## Multi-Admin Coordination
-
-### Communication Channels
-
-1. **Primary**: Secure messaging (Signal/Telegram)
-2. **Backup**: Email with PGP encryption
-3. **Emergency**: Phone calls for critical issues
-
-### Decision Making
-
-1. **Routine Operations**: Any admin can execute
-2. **Configuration Changes**: Require 2/3 admin consensus
-3. **Emergency Actions**: Any emergency role holder can execute
-4. **Role Changes**: Require DEFAULT_ADMIN approval
-
-### Handoff Procedures
-
-```markdown
-## Admin Handoff Checklist
-- [ ] Review recent operations
-- [ ] Check system health metrics
-- [ ] Note any pending issues
-- [ ] Update handoff log
-- [ ] Confirm next admin availability
 ```
 
 ## Integration Examples

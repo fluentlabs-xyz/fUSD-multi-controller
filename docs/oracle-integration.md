@@ -6,78 +6,47 @@
 
 ## Overview
 
-The fUSD system relies on accurate price feeds to maintain its peg to USD. The oracle system is designed to be swappable, allowing seamless transitions from test oracles to production-grade solutions like Pyth Network.
+The fUSD system implements a multi (dual, atm) oracle architecture providing both development/testing capabilities and production-ready Pyth Network integration. The system features secure oracle switching through a timelock mechanism, ensuring seamless transitions while maintaining security.
 
-## Current Implementation: MockOracle
+## Architecture
 
-### Purpose
+### Dual Oracle System
 
-The `MockOracle` provides a controlled testing environment with configurable price feeds and deterministic behavior, essential for:
-- Development and testing
-- Simulating market conditions
-- Testing error scenarios
-- Validating price movement limits
-
-### Architecture
-
-```solidity
-contract MockOracle is IOracle {
-    uint256 public ETH_PRICE = 4500 * 1e6; // $4500 with 6 decimals
-    bool public enableFluctuations = false;
-    uint256 public fluctuationRange = 50; // 0.5% = 50 basis points
-    bool public isOracleHealthy = true;
-}
+```
+┌─────────────────┐     ┌──────────────────┐
+│  DeskController │────▶│  Oracle System   │
+└─────────────────┘     └──────────────────┘
+                                 │
+                      ┌──────────┼────────────────┐
+                      ▼          ▼                ▼
+              ┌─────────────┐ ┌─────────────┐ ┌─────────────┐
+              │ MockOracle  │ │ PythOracle  │ │   Timelock  │
+              │  (Testing)  │ │(Production) │ │ Switching   │
+              └─────────────┘ └─────────────┘ └─────────────┘
 ```
 
-### Key Features
+### Key Components
 
-1. **Configurable Base Price**
-   ```solidity
-   function setPrice(uint256 newPrice) external onlyAdmin {
-       require(newPrice > 0, "Price must be positive");
-       ETH_PRICE = newPrice;
-       emit PriceUpdated(oldPrice, newPrice);
-   }
-   ```
+1. **Oracle Interface** (`src/interfaces/IOracle.sol`)
+   - Standardized interface for all oracle implementations
+   - Ensures consistent behavior across different oracle types
 
-2. **Deterministic Fluctuations**
-   ```solidity
-   function _calculatePriceWithFluctuations(uint256 timestamp) internal view returns (uint256) {
-       uint256 seed = uint256(keccak256(abi.encode(timestamp / 300)));
-       // Price changes every 5 minutes
-   }
-   ```
+2. **MockOracle** (`src/oracles/MockOracle.sol`) 
+   - Configurable testing oracle with deterministic behavior
+   - AccessControl integration for secure admin operations
 
-3. **Health Status Simulation**
-   ```solidity
-   function setHealthStatus(bool healthy) external onlyAdmin {
-       isOracleHealthy = healthy;
-   }
-   ```
+3. **PythOracle** (`src/oracles/PythOracle.sol`)
+   - Production Pyth Network integration with ETH/USD feeds
+   - Price update functionality with fee management
+   - AccessControl integration matching system patterns
 
-### Testing Scenarios
-
-1. **Normal Operation**
-   ```javascript
-   await oracle.setPrice(4500 * 1e6);
-   await oracle.setHealthStatus(true);
-   ```
-
-2. **Market Volatility**
-   ```javascript
-   await oracle.setFluctuations(true);
-   await oracle.setFluctuationRange(200); // 2% swings
-   ```
-
-3. **Oracle Failure**
-   ```javascript
-   await oracle.simulateFailure();
-   // All operations requiring oracle will fail
-   ```
+4. **Timelock Switching** (built into `DeskController`)
+   - 2-day delay mechanism for secure oracle transitions
+   - Propose/execute/cancel workflow for admin control
 
 ## Oracle Interface
 
-All oracles must implement the `IOracle` interface:
+All oracles implement the standardized `IOracle` interface:
 
 ```solidity
 interface IOracle {
@@ -87,338 +56,470 @@ interface IOracle {
 ```
 
 ### Price Format
-- **Decimals**: 6 (e.g., $4,500.00 = 4500000000)
-- **Update Frequency**: Varies by implementation
-- **Staleness Check**: Handled by oracle implementation
 
-## Price Validation Mechanisms
+- **Decimals**: 6 (USDC-style: $4,500.00 = 4500000000)
+- **Range**: Supports realistic ETH prices ($1 - $100,000)
+- **Precision**: Sufficient for accurate mint/burn calculations
 
-### 1. Oracle Health Checks
+## MockOracle Implementation
+
+### Purpose & Features
+
+The MockOracle provides controlled testing environments with:
 
 ```solidity
-modifier onlyHealthyOracle() {
-    require(ORACLE.isHealthy(), "Oracle unhealthy");
-    _;
+contract MockOracle is IOracle, AccessControl {
+    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 public constant EMERGENCY_ROLE = keccak256("EMERGENCY_ROLE");
+    
+    uint256 public ETH_PRICE = 4500 * 1e6; // $4500 base price
+    bool public enableFluctuations = false;
+    uint256 public fluctuationRange = 50; // 0.5% = 50 basis points
+    bool public isOracleHealthy = true;
 }
 ```
 
-Every price-dependent operation checks oracle health first.
+### Key Capabilities
 
-### 2. Price Movement Validation
+1. **Configurable Base Price**
+
+   ```solidity
+   function setPrice(uint256 newPrice) external onlyRole(ADMIN_ROLE) {
+       require(newPrice > 0, "Price must be positive");
+       uint256 oldPrice = ETH_PRICE;
+       ETH_PRICE = newPrice;
+       emit PriceUpdated(oldPrice, newPrice);
+   }
+   ```
+
+2. **Deterministic Fluctuations**
+
+   ```solidity
+   function setFluctuations(bool enabled) external onlyRole(ADMIN_ROLE) {
+       enableFluctuations = enabled;
+   }
+   
+   function setFluctuationRange(uint256 rangeInBasisPoints) external onlyRole(ADMIN_ROLE) {
+       require(rangeInBasisPoints <= 1000, "Range too high"); // Max 10%
+       fluctuationRange = rangeInBasisPoints;
+   }
+   ```
+
+3. **Health Status Control**
+
+   ```solidity
+   function setHealthStatus(bool healthy) external onlyRole(ADMIN_ROLE) {
+       isOracleHealthy = healthy;
+   }
+   
+   function simulateFailure() external onlyRole(EMERGENCY_ROLE) {
+       isOracleHealthy = false;
+   }
+   ```
+
+4. **AccessControl Integration**
+
+   ```solidity
+   function grantAdminRole(address account) external onlyRole(DEFAULT_ADMIN_ROLE) {
+       _grantRole(ADMIN_ROLE, account);
+   }
+   
+   function revokeAdminRole(address account) external onlyRole(DEFAULT_ADMIN_ROLE) {
+       _revokeRole(ADMIN_ROLE, account);
+   }
+   ```
+
+## PythOracle Implementation
+
+### Architecture
+
+The PythOracle integrates with Pyth Network's pull-based pricing system:
+
+```solidity
+contract PythOracle is IOracle, AccessControl {
+    IPyth public immutable pyth;
+    bytes32 public constant ETH_USD_PRICE_FEED = 0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace;
+    
+    uint256 private constant PYTH_PRECISION = 1e8;
+    uint256 private constant TARGET_PRECISION = 1e6;
+    uint256 public maxPriceAge = 3600; // 1 hour staleness tolerance
+}
+```
+
+### Core Functions
+
+1. **Price Retrieval**
+
+   ```solidity
+   function getEthUsd() external view returns (uint256) {
+       PythStructs.Price memory pythPrice = pyth.getPriceNoOlderThan(
+           ETH_USD_PRICE_FEED, 
+           maxPriceAge
+       );
+       
+       require(pythPrice.price > 0, "Invalid price");
+       return _convertToTargetPrecision(pythPrice);
+   }
+   ```
+
+2. **Health Monitoring**
+
+   ```solidity
+   function isHealthy() external view returns (bool) {
+       try pyth.getPriceNoOlderThan(ETH_USD_PRICE_FEED, maxPriceAge) returns (PythStructs.Price memory price) {
+           return price.price > 0 && price.conf > 0;
+       } catch {
+           return false;
+       }
+   }
+   ```
+
+### Price Update Functionality
+
+The PythOracle supports updating price feeds with fee management:
+
+```solidity
+function updatePriceFeeds(bytes[] calldata priceUpdateData) external payable {
+    uint256 requiredFee = pyth.getUpdateFee(priceUpdateData);
+    require(msg.value >= requiredFee, "Insufficient fee");
+    
+    // Update price feeds
+    pyth.updatePriceFeeds{value: requiredFee}(priceUpdateData);
+    
+    // Refund overpaid fees
+    uint256 refund = msg.value - requiredFee;
+    if (refund > 0) {
+        (bool success, ) = msg.sender.call{value: refund}("");
+        require(success, "Refund failed");
+    }
+    
+    emit PriceFeedsUpdated(priceUpdateData.length, requiredFee);
+}
+
+function updateAndGetPrice(bytes[] calldata priceUpdateData) external payable returns (uint256) {
+    if (priceUpdateData.length > 0) {
+        updatePriceFeeds(priceUpdateData);
+    }
+    return getEthUsd();
+}
+
+function getUpdateFee(bytes[] calldata priceUpdateData) external view returns (uint256) {
+    return pyth.getUpdateFee(priceUpdateData);
+}
+```
+
+### Precision Conversion
+
+Converting between Pyth's format and our 6-decimal system:
+
+```solidity
+function _convertToTargetPrecision(PythStructs.Price memory pythPrice) internal pure returns (uint256) {
+    require(pythPrice.price > 0, "Invalid price");
+    
+    int64 price = pythPrice.price;
+    int32 expo = pythPrice.expo;
+    
+    // Convert to positive price
+    uint256 unsignedPrice = uint256(int256(price));
+    
+    // Pyth ETH/USD typically uses expo = -8, we want 6 decimals
+    // So we divide by 10^(8-6) = 10^2 = 100
+    if (expo == -8) {
+        return unsignedPrice / 100;
+    }
+    
+    // Generic conversion for other exponents
+    int256 adjustment = int256(TARGET_PRECISION) - int256(10**uint256(-expo));
+    if (adjustment > 0) {
+        return unsignedPrice * uint256(adjustment);
+    } else {
+        return unsignedPrice / uint256(-adjustment);
+    }
+}
+```
+
+## Timelock Oracle Switching
+
+The DeskController implements secure oracle switching with a 2-day timelock:
+
+### State Management
+
+```solidity
+contract DeskController {
+    IOracle public oracle;
+    
+    // Timelock state
+    address public proposedOracle;
+    uint256 public oracleUpdateTime;
+    uint256 public constant ORACLE_TIMELOCK = 2 days;
+}
+```
+
+### Switching Process
+
+1. **Propose Oracle Change**
+
+   ```solidity
+   function proposeOracleUpdate(address newOracle) external onlyRole(ADMIN_ROLE) {
+       require(newOracle != address(0), "Invalid oracle address");
+       require(newOracle != address(oracle), "Oracle already active");
+       require(IOracle(newOracle).isHealthy(), "Proposed oracle unhealthy");
+       
+       proposedOracle = newOracle;
+       oracleUpdateTime = block.timestamp + ORACLE_TIMELOCK;
+       
+       emit OracleUpdateProposed(address(oracle), newOracle, oracleUpdateTime);
+   }
+   ```
+
+2. **Execute Oracle Change** (after timelock)
+
+   ```solidity
+   function executeOracleUpdate() external onlyRole(ADMIN_ROLE) {
+       require(proposedOracle != address(0), "No proposed oracle");
+       require(block.timestamp >= oracleUpdateTime, "Timelock not expired");
+       require(IOracle(proposedOracle).isHealthy(), "Proposed oracle unhealthy");
+       
+       address oldOracle = address(oracle);
+       oracle = IOracle(proposedOracle);
+       
+       // Clear timelock state
+       proposedOracle = address(0);
+       oracleUpdateTime = 0;
+       
+       emit OracleUpdated(oldOracle, address(oracle));
+   }
+   ```
+
+3. **Cancel Proposal** (emergency)
+
+   ```solidity
+   function cancelOracleUpdate() external onlyRole(ADMIN_ROLE) {
+       require(proposedOracle != address(0), "No proposed oracle");
+       
+       address cancelled = proposedOracle;
+       proposedOracle = address(0);
+       oracleUpdateTime = 0;
+       
+       emit OracleUpdateCancelled(cancelled);
+   }
+   ```
+
+## Deployment Configuration
+
+Oracle selection is environment-driven through the deployment script:
+
+```solidity
+contract DeployFUSD is Script {
+    function run() external {
+        // Deploy both oracles
+        MockOracle mockOracle = new MockOracle();
+        PythOracle pythOracle = new PythOracle(PYTH_CONTRACT_ADDRESS);
+        
+        // Choose oracle based on environment
+        bool usePyth = vm.envOr("PYTH", false);
+        IOracle selectedOracle = usePyth ? pythOracle : mockOracle;
+        
+        // Deploy controller with selected oracle
+        DeskController controller = new DeskController(
+            address(fusdToken),
+            address(selectedOracle),
+            address(registry)
+        );
+    }
+}
+```
+
+## Price Validation & Security
+
+### Oracle Health Checks
+
+Every price-dependent operation validates oracle health:
+
+```solidity
+modifier onlyHealthyOracle() {
+    require(oracle.isHealthy(), "Oracle unhealthy");
+    _;
+}
+
+function mint() external payable whenNotPaused onlyHealthyOracle {
+    uint256 ethPrice = oracle.getEthUsd();
+    // ... rest of mint logic
+}
+```
+
+### Price Movement Validation
+
+The DeskController validates price movements to prevent manipulation:
 
 ```solidity
 function _validatePrice(uint256 newPrice) internal view {
     if (lastPrice > 0) {
-        uint256 priceDiff = _abs(newPrice, lastPrice);
         uint256 maxAllowedMove = (lastPrice * maxPriceMove) / 1e18;
+        uint256 priceDiff = newPrice > lastPrice ? 
+            newPrice - lastPrice : lastPrice - newPrice;
         require(priceDiff <= maxAllowedMove, "Price move too large");
     }
 }
 ```
 
-Prevents extreme price movements:
-- Default: 5% maximum movement
-- Configurable by admins
-- Tracks price history
+## Testing Framework
 
-### 3. Price Tracking
+### Test Structure
+
+```
+test/oracles/
+├── MockOracle.t.sol       # 24 tests covering all MockOracle functionality  
+├── PythOracle.t.sol       # 26 tests covering PythOracle with MockPyth
+└── OracleSwitching.t.sol  # 29 tests covering timelock mechanism
+```
+
+### Test Categories
+
+1. **MockOracle Tests** (`MockOracle.t.sol`)
+   - Price setting and retrieval
+   - Fluctuation mechanisms
+   - Health status management
+   - AccessControl integration
+
+2. **PythOracle Tests** (`PythOracle.t.sol`)
+   - Pyth Network integration
+   - Price conversion accuracy
+   - Update fee calculations
+   - Error handling
+
+3. **Oracle Switching Tests** (`OracleSwitching.t.sol`)
+   - Timelock propose/execute/cancel workflow
+   - Security validations
+   - Edge cases and error conditions
+
+### Example Test Patterns
 
 ```solidity
-function _updatePrice(uint256 newPrice) internal {
-    if (newPrice != lastPrice) {
-        lastPrice = newPrice;
-        lastPriceUpdate = block.timestamp;
-        priceUpdateCount++;
-        emit PriceUpdated(oldPrice, newPrice);
-    }
+function testOracleSwitchingTimelock() public {
+    // Propose oracle switch
+    vm.prank(admin);
+    controller.proposeOracleUpdate(address(pythOracle));
+    
+    // Cannot execute immediately
+    vm.expectRevert("Timelock not expired");
+    vm.prank(admin);
+    controller.executeOracleUpdate();
+    
+    // Execute after timelock
+    vm.warp(block.timestamp + 2 days + 1);
+    vm.prank(admin);
+    controller.executeOracleUpdate();
+    
+    assertEq(address(controller.oracle()), address(pythOracle));
 }
 ```
 
-## Planned: Pyth Network Integration
+## Best Practices
 
-### Why Pyth Network?
+### Oracle Integration
 
-1. **High Frequency Updates**: Sub-second price updates
-2. **Multiple Data Sources**: Aggregated from top exchanges
-3. **Confidence Intervals**: Price uncertainty metrics
-4. **Cross-Chain**: Same price feeds across networks
-5. **Pull-Based Updates**: Gas-efficient on-demand pricing
+1. **Always Check Health**
 
-### Implementation Plan
+   ```solidity
+   function getPrice() internal view returns (uint256) {
+       require(oracle.isHealthy(), "Oracle unhealthy");
+       return oracle.getEthUsd();
+   }
+   ```
 
-```solidity
-contract PythOracle is IOracle {
-    IPyth public immutable pythContract;
-    bytes32 public immutable ethUsdPriceFeedId;
-    uint256 public immutable maxStaleness = 60; // 1 minute
-    
-    function getEthUsd() external view returns (uint256) {
-        PythStructs.Price memory price = pythContract.getPriceUnsafe(ethUsdPriceFeedId);
-        
-        // Check staleness
-        require(block.timestamp - price.publishTime <= maxStaleness, "Price too stale");
-        
-        // Convert Pyth's price format to our 6 decimal format
-        return _convertPythPrice(price);
-    }
-    
-    function isHealthy() external view returns (bool) {
-        try pythContract.getPriceUnsafe(ethUsdPriceFeedId) returns (PythStructs.Price memory price) {
-            return block.timestamp - price.publishTime <= maxStaleness;
-        } catch {
-            return false;
-        }
-    }
-}
-```
+2. **Handle Failures Gracefully**
 
-### Price Conversion
+   ```solidity
+   function mint() external payable {
+       if (!oracle.isHealthy()) {
+           revert("Trading paused: oracle unhealthy");
+       }
+       // Continue with mint logic
+   }
+   ```
 
-Pyth uses signed integers with exponents:
-```solidity
-function _convertPythPrice(PythStructs.Price memory price) internal pure returns (uint256) {
-    // Pyth price: price * 10^exponent
-    // Our format: price * 10^6
-    
-    require(price.price > 0, "Invalid price");
-    
-    if (price.expo >= -6) {
-        // Scale up
-        return uint256(price.price) * 10**uint256(int256(6 + price.expo));
-    } else {
-        // Scale down
-        return uint256(price.price) / 10**uint256(-int256(price.expo + 6));
-    }
-}
-```
+3. **Validate Price Changes**
 
-## Oracle Swapping Procedure
+   ```solidity
+   function _updateLastPrice(uint256 newPrice) internal {
+       _validatePrice(newPrice);
+       lastPrice = newPrice;
+       lastPriceUpdate = block.timestamp;
+   }
+   ```
 
-### 1. Deploy New Oracle
+### Testing Strategies
 
-```solidity
-// Deploy Pyth oracle
-PythOracle newOracle = new PythOracle(pythAddress, priceFeedId);
+1. **Test Both Oracle Types**
+   - MockOracle for controlled scenarios
+   - PythOracle with MockPyth for integration
 
-// Test thoroughly
-assert(newOracle.isHealthy());
-assert(newOracle.getEthUsd() > 0);
-```
+2. **Test Oracle Switching**
+   - Normal timelock workflow
+   - Emergency cancellation
+   - Invalid proposals
 
-### 2. Parallel Running
-
-```solidity
-contract OracleAggregator is IOracle {
-    IOracle public primaryOracle;
-    IOracle public secondaryOracle;
-    uint256 public maxDeviation = 2e16; // 2%
-    
-    function getEthUsd() external view returns (uint256) {
-        uint256 price1 = primaryOracle.getEthUsd();
-        uint256 price2 = secondaryOracle.getEthUsd();
-        
-        // Ensure prices are within acceptable deviation
-        uint256 diff = _abs(price1, price2);
-        require(diff <= (price1 * maxDeviation) / 1e18, "Oracle deviation");
-        
-        return price1; // Use primary
-    }
-}
-```
-
-### 3. Gradual Migration
-
-```solidity
-contract MigratableController {
-    IOracle public oracle;
-    address public pendingOracle;
-    uint256 public oracleUpdateTime;
-    
-    function proposeOracleUpdate(address newOracle) external onlyAdmin {
-        pendingOracle = newOracle;
-        oracleUpdateTime = block.timestamp + 2 days;
-    }
-    
-    function executeOracleUpdate() external onlyAdmin {
-        require(pendingOracle != address(0), "No pending oracle");
-        require(block.timestamp >= oracleUpdateTime, "Timelock active");
-        
-        oracle = IOracle(pendingOracle);
-        pendingOracle = address(0);
-    }
-}
-```
-
-## Handling Oracle Failures
-
-### 1. Graceful Degradation
-
-```solidity
-function mint() external payable whenNotPaused onlyHealthyOracle {
-    // Will fail if oracle unhealthy
-}
-```
-
-### 2. Emergency Fallback
-
-```solidity
-contract EmergencyPriceOracle is IOracle {
-    uint256 public emergencyPrice;
-    bool public useEmergencyPrice;
-    
-    function getEthUsd() external view returns (uint256) {
-        if (useEmergencyPrice) {
-            return emergencyPrice;
-        }
-        return primaryOracle.getEthUsd();
-    }
-}
-```
-
-### 3. Circuit Breakers
-
-```solidity
-function _handleOracleFailure() internal {
-    mintingPaused = true;
-    burningPaused = true;
-    emit OracleFailureDetected(block.timestamp);
-}
-```
-
-## Oracle Security Considerations
-
-### 1. Price Manipulation Protection
-
-- **Multiple Source Validation**: Pyth aggregates from multiple exchanges
-- **Confidence Intervals**: Reject prices with high uncertainty
-- **Rate Limiting**: Prevent rapid arbitrage during manipulation
-- **Maximum Movement Checks**: Reject suspicious price swings
-
-### 2. Availability Concerns
-
-- **Fallback Oracles**: Secondary price sources
-- **Caching**: Store recent valid prices
-- **Health Monitoring**: Continuous oracle status checks
-- **Manual Override**: Emergency admin controls
-
-### 3. Integration Testing
-
-```solidity
-contract OracleTest {
-    function testPriceManipulation() public {
-        // Set extreme price
-        mockOracle.setPrice(10000 * 1e6); // $10,000
-        
-        // Attempt mint - should fail
-        vm.expectRevert("Price move too large");
-        controller.mint{value: 1 ether}();
-    }
-    
-    function testOracleFailure() public {
-        // Simulate failure
-        mockOracle.setHealthStatus(false);
-        
-        // All operations should fail
-        vm.expectRevert("Oracle unhealthy");
-        controller.mint{value: 1 ether}();
-    }
-}
-```
+3. **Test Failure Scenarios**
+   - Unhealthy oracle detection
+   - Stale price handling
+   - Network connectivity issues
 
 ## Future Enhancements
 
-### 1. Multi-Oracle Aggregation
+### Multi-Oracle Aggregation
 
 ```solidity
-contract MultiOracle is IOracle {
+contract AggregatorOracle is IOracle {
     IOracle[] public oracles;
+    uint256 public maxDeviation = 2e16; // 2%
     
     function getEthUsd() external view returns (uint256) {
         uint256[] memory prices = new uint256[](oracles.length);
+        uint256 validCount = 0;
         
-        // Collect all prices
         for (uint i = 0; i < oracles.length; i++) {
             if (oracles[i].isHealthy()) {
-                prices[i] = oracles[i].getEthUsd();
+                prices[validCount] = oracles[i].getEthUsd();
+                validCount++;
             }
         }
         
-        // Return median price
-        return _calculateMedian(prices);
+        require(validCount >= 2, "Insufficient healthy oracles");
+        return _calculateMedian(prices, validCount);
     }
 }
 ```
 
-### 2. Time-Weighted Average Price (TWAP)
+### TWAP Oracle
 
 ```solidity
 contract TWAPOracle is IOracle {
-    uint256[] public priceHistory;
-    uint256[] public timestamps;
-    uint256 public windowSize = 15 minutes;
+    struct PricePoint {
+        uint256 price;
+        uint256 timestamp;
+    }
+    
+    PricePoint[] public priceHistory;
+    uint256 public constant TWAP_WINDOW = 15 minutes;
     
     function getEthUsd() external view returns (uint256) {
-        return _calculateTWAP(block.timestamp - windowSize, block.timestamp);
+        return _calculateTWAP(block.timestamp - TWAP_WINDOW, block.timestamp);
     }
 }
-```
-
-### 3. Volatility-Adjusted Limits
-
-```solidity
-contract VolatilityOracle is IOracle {
-    function getMaxPriceMove() external view returns (uint256) {
-        uint256 volatility = _calculateVolatility();
-        return volatility * 3; // 3 standard deviations
-    }
-}
-```
-
-## Integration Guide
-
-### For Controller Developers
-
-```solidity
-contract NewController {
-    IOracle public oracle;
-    
-    constructor(address _oracle) {
-        oracle = IOracle(_oracle);
-    }
-    
-    function getPrice() internal view returns (uint256) {
-        require(oracle.isHealthy(), "Oracle unhealthy");
-        return oracle.getEthUsd();
-    }
-}
-```
-
-### For Frontend Integration
-
-```javascript
-// Check oracle status
-const isHealthy = await oracle.isHealthy();
-if (!isHealthy) {
-    showError("Price feed unavailable");
-    return;
-}
-
-// Get current price
-const ethPrice = await oracle.getEthUsd();
-const formattedPrice = ethPrice / 1e6; // Convert to dollars
 ```
 
 ## Summary
 
-The oracle system provides:
+The multi oracle architecture provides:
 
-- **Flexibility**: Easy swapping between oracle implementations
-- **Reliability**: Health checks and failure handling
-- **Security**: Price validation and manipulation protection
-- **Testability**: Comprehensive testing capabilities with MockOracle
-- **Future-Proof**: Ready for Pyth Network and other oracle integrations
+- **Flexibility**: Easy testing with MockOracle, production-ready with PythOracle
+- **Security**: Timelock mechanism prevents rapid oracle changes
+- **Reliability**: Health checks and graceful failure handling  
+- **Integration**: Consistent AccessControl patterns across all components
+- **Extensibility**: Interface-based design supports future oracle types
 
-This design ensures accurate pricing while maintaining system stability and security.
+This implementation ensures accurate, secure, and reliable price feeds for the fUSD stablecoin system while maintaining operational flexibility for different deployment environments.
 
 ---
 

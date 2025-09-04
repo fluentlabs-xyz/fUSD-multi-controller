@@ -15,7 +15,7 @@ fUSD is an ETH-collateralized stablecoin that maintains a soft peg to USD throug
 - **6-Decimal Stablecoin**: USDC-style decimal precision for compatibility
 - **Trading Desk Model**: Direct mint/burn mechanism through ETH collateral
 - **Modular Controller Architecture**: Extensible design supporting multiple controller types
-- **Swappable Oracle System**: Currently using MockOracle with planned Pyth Network integration
+- **Dual Oracle Architecture**: MockOracle and PythOracle with timelock switching mechanism
 - **Multi-Admin Access Control**: Support for administrators across different time zones
 - **Built-in Safety Features**:
   - Rate limiting per user (configurable cooldown)
@@ -34,8 +34,14 @@ fUSD is an ETH-collateralized stablecoin that maintains a soft peg to USD throug
                              │                        │
                              ▼                        ▼
                     ┌──────────────────┐     ┌──────────────┐
-                    │   MockOracle     │     │   Registry   │
-                    └──────────────────┘     └──────────────┘
+                    │  Oracle System   │     │   Registry   │
+                    │ ┌──────────────┐ │     └──────────────┘
+                    │ │ MockOracle   │ │
+                    │ └──────────────┘ │
+                    │ ┌──────────────┐ │
+                    │ │ PythOracle   │ │
+                    │ └──────────────┘ │
+                    └──────────────────┘
 ```
 
 ### Core Components
@@ -55,10 +61,11 @@ fUSD is an ETH-collateralized stablecoin that maintains a soft peg to USD throug
    - Enforces daily minting limits
    - Tracks controller metadata and statistics
 
-4. **MockOracle** (`src/MockOracle.sol`)
-   - Configurable price feed for testing
-   - Supports price fluctuations and health status
-   - Will be replaced with Pyth Network in production
+4. **Oracle System** (`src/oracles/`)
+   - **MockOracle**: Configurable price feed for testing environments
+   - **PythOracle**: Production-ready Pyth Network integration with ETH/USD feeds
+   - **Timelock Switching**: 2-day delay mechanism for secure oracle transitions
+   - **AccessControl**: Role-based permissions matching DeskController pattern
 
 ## Quick Start
 
@@ -79,12 +86,15 @@ forge install
 ### Configuration
 
 1. Create `.env` file:
+
 ```bash
 PRIVATE_KEY=your_private_key
 RPC_URL=your_rpc_url
+PYTH="0x2880aB155794e7179c9eE2e38200202908C17B43"
 ```
 
-2. Configure admin addresses in `script/config/admins.json`:
+1. Configure admin addresses in `script/config/admins.json`:
+
 ```json
 {
     "admins": ["0x..."],
@@ -101,12 +111,14 @@ forge script script/DeployFUSD.s.sol --rpc-url $RPC_URL --broadcast
 ### Basic Usage
 
 #### Minting fUSD
+
 ```solidity
 // Send ETH to mint fUSD at current oracle price
 deskController.mint{value: 1 ether}();
 ```
 
 #### Burning fUSD
+
 ```solidity
 // Approve and burn fUSD to receive ETH
 fusd.approve(address(deskController), amount);
@@ -116,11 +128,13 @@ deskController.burn(amount);
 ## Testing
 
 Run the comprehensive test suite:
+
 ```bash
 forge test
 ```
 
 Run with verbosity:
+
 ```bash
 forge test -vvv
 ```
@@ -141,7 +155,9 @@ Detailed documentation is available in the `/docs` folder:
 testnet-stablecoin/
 ├── src/
 │   ├── fUSD.sol                    # Main stablecoin token
-│   ├── MockOracle.sol              # Test oracle implementation
+│   ├── oracles/
+│   │   ├── MockOracle.sol          # Test oracle implementation
+│   │   └── PythOracle.sol          # Pyth Network oracle integration
 │   ├── controller/
 │   │   ├── DeskController.sol      # Trading desk controller
 │   │   └── ControllerRegistry.sol  # Controller management
@@ -154,7 +170,11 @@ testnet-stablecoin/
 │   └── config/
 │       └── admins.json            # Admin configuration
 ├── test/
-│   └── FUSD.t.sol                 # Comprehensive test suite
+│   ├── FUSD.t.sol                 # Main test suite
+│   └── oracles/
+│       ├── MockOracle.t.sol       # MockOracle tests
+│       ├── PythOracle.t.sol       # PythOracle tests
+│       └── OracleSwitching.t.sol  # Timelock switching tests
 ├── offchain/
 │   └── arbitrage.js               # Arbitrage bot implementation
 └── docs/                          # Detailed documentation
@@ -193,6 +213,7 @@ The fUSD system implements multiple layers of security:
 Emergency role holders can execute critical interventions using Foundry's cast commands:
 
 #### 1. Pause All Operations
+
 ```bash
 # Pause the controller globally
 cast send $DESK_CONTROLLER "pause()" --private-key $EMERGENCY_KEY --rpc-url $RPC_URL
@@ -205,6 +226,7 @@ cast send $DESK_CONTROLLER "pauseBurning()" --private-key $EMERGENCY_KEY --rpc-u
 ```
 
 #### 2. Emergency Withdrawals
+
 ```bash
 # Withdraw ETH from controller
 cast send $DESK_CONTROLLER "emergencyWithdraw(uint256)" "1000000000000000000" --private-key $EMERGENCY_KEY --rpc-url $RPC_URL
@@ -214,6 +236,7 @@ cast send $DESK_CONTROLLER "emergencyWithdrawFusd(uint256)" "1000000" --private-
 ```
 
 #### 3. Resume Operations (Admin Role)
+
 ```bash
 # Unpause globally
 cast send $DESK_CONTROLLER "unpause()" --private-key $ADMIN_KEY --rpc-url $RPC_URL
@@ -226,6 +249,7 @@ cast send $DESK_CONTROLLER "resumeBurning()" --private-key $ADMIN_KEY --rpc-url 
 ```
 
 #### 4. Update Critical Parameters
+
 ```bash
 # Update configuration (cooldown, minMint, minEth)
 cast send $DESK_CONTROLLER "setConfig(uint256,uint256,uint256)" "3600" "1000000" "100000000000000" --private-key $ADMIN_KEY --rpc-url $RPC_URL
@@ -235,6 +259,7 @@ cast send $DESK_CONTROLLER "setMaxPriceMove(uint256)" "50000000000000000" --priv
 ```
 
 #### 5. Check System Status
+
 ```bash
 # Check if paused
 cast call $DESK_CONTROLLER "paused()" --rpc-url $RPC_URL
@@ -275,11 +300,9 @@ cast call $DESK_CONTROLLER "getFusdBalance()" --rpc-url $RPC_URL
 
 ## Future Enhancements
 
-1. **Pyth Network Integration**: Replace MockOracle with production oracle
-2. **AMM Pool Creation**: Automated liquidity pool deployment
-3. **Additional Controllers**: Migration tools, bridge controllers
-4. **Enhanced Monitoring**: Real-time analytics dashboard
-5. **Governance Module**: Decentralized parameter updates
+1. **AMM Pool Creation**: Automated liquidity pool deployment
+1. **Additional Controllers**: Migration tools, bridge controllers
+1. **Enhanced Monitoring**: Real-time analytics dashboard
 
 ## License
 

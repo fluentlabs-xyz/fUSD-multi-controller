@@ -39,6 +39,7 @@ contract fUSD is ERC20, AccessControl {
 ```
 
 Key features:
+
 - Only controllers can mint/burn tokens
 - 6 decimal places (USDC-style)
 - Standard ERC20 functionality
@@ -60,6 +61,7 @@ interface IController {
 ```
 
 This standardization allows:
+
 - Consistent interaction patterns
 - Easy integration with frontend/bots
 - Predictable behavior across controllers
@@ -80,6 +82,7 @@ struct ControllerInfo {
 ```
 
 Key responsibilities:
+
 - Track all authorized controllers
 - Enforce daily minting limits per controller
 - Enforce global daily limits across all controllers
@@ -91,93 +94,94 @@ Key responsibilities:
 The `DeskController` is the primary trading desk implementation with these features:
 
 ### Core Functionality
+
 - **Mint**: Users send ETH, receive fUSD at oracle price
 - **Burn**: Users burn fUSD, receive ETH at oracle price
 - **Quote Functions**: Get exact amounts before transactions
 
 ### Safety Features
+
 1. **Rate Limiting**
+
    ```solidity
    mapping(address => uint256) public lastActionTime;
    uint256 public actionCooldown = 1 days;
    ```
 
 2. **Price Validation**
+
    ```solidity
    uint256 public maxPriceMove = 5e16; // 5% max movement
    function _validatePrice(uint256 newPrice) internal view
    ```
 
 3. **Minimum Amounts**
+
    ```solidity
    uint256 public minMint = 1 * 1e6;    // 1 fUSD
    uint256 public minEth = 0.0001 ether; // Dust prevention
    ```
 
 4. **Circuit Breakers**
+
    ```solidity
    bool public mintingPaused = false;
    bool public burningPaused = false;
    ```
 
 ### Access Control
+
 - `ADMIN_ROLE`: Configuration updates, pause/unpause
 - `EMERGENCY_ROLE`: Emergency withdrawals
 - `DEFAULT_ADMIN_ROLE`: Role management
 
-## Future Controller Types
+### Oracle Integration
 
-The architecture supports various controller types:
+The DeskController integrates with a dual oracle system providing flexibility for both development and production environments:
 
-### 1. Migration Controller
-For upgrading from old token versions:
+#### Oracle Architecture
+
+- **MockOracle**: Configurable testing oracle for development
+- **PythOracle**: Production Pyth Network integration with real-time ETH/USD feeds
+- **Timelock Switching**: 2-day delay mechanism for secure oracle transitions
+
+#### Oracle Switching Mechanism
+
 ```solidity
-contract MigrationController is IController {
-    function migrateTokens(uint256 oldTokenAmount) external {
-        oldToken.transferFrom(msg.sender, address(this), oldTokenAmount);
-        fusd.mint(msg.sender, oldTokenAmount);
-    }
+// Propose oracle change
+function proposeOracleUpdate(address newOracle) external onlyRole(ADMIN_ROLE) {
+    require(IOracle(newOracle).isHealthy(), "Proposed oracle unhealthy");
+    proposedOracle = newOracle;
+    oracleUpdateTime = block.timestamp + ORACLE_TIMELOCK;
+}
+
+// Execute after timelock
+function executeOracleUpdate() external onlyRole(ADMIN_ROLE) {
+    require(block.timestamp >= oracleUpdateTime, "Timelock not expired");
+    oracle = IOracle(proposedOracle);
 }
 ```
 
-### 2. Bridge Controller
-For cross-chain minting:
-```solidity
-contract BridgeController is IController {
-    function mintFromBridge(address user, uint256 amount, bytes32 txHash) external onlyBridge {
-        require(!processedTxs[txHash], "Already processed");
-        fusd.mint(user, amount);
-    }
-}
-```
+#### Oracle Health Integration
 
-### 3. Collateral Controller
-For multi-asset collateral:
-```solidity
-contract CollateralController is IController {
-    function mintWithToken(address token, uint256 amount) external {
-        uint256 tokenValue = oracle.getTokenValue(token, amount);
-        collateral[token].transferFrom(msg.sender, address(this), amount);
-        fusd.mint(msg.sender, tokenValue);
-    }
-}
-```
+All price-dependent operations verify oracle health:
 
-### 4. Yield Controller
-For productive collateral:
 ```solidity
-contract YieldController is IController {
-    function stake(uint256 amount) external {
-        fusd.transferFrom(msg.sender, address(this), amount);
-        // Deposit to yield protocol
-        yieldToken.deposit(amount);
-    }
+modifier onlyHealthyOracle() {
+    require(oracle.isHealthy(), "Oracle unhealthy");
+    _;
+}
+
+function mint() external payable onlyHealthyOracle {
+    uint256 ethPrice = oracle.getEthUsd();
+    // ... mint logic
 }
 ```
 
 ## Controller Lifecycle
 
 ### 1. Deployment
+
 ```solidity
 DeskController desk = new DeskController(
     address(fusd),
@@ -186,6 +190,7 @@ DeskController desk = new DeskController(
 ```
 
 ### 2. Authorization
+
 ```solidity
 // Grant controller role on token
 fusd.grantRole(fusd.CONTROLLER_ROLE(), address(desk));
@@ -195,17 +200,20 @@ registry.addController(address(desk), "Trading Desk", 1_000_000 * 1e6);
 ```
 
 ### 3. Configuration
+
 ```solidity
 desk.setConfig(cooldown, minMint, minEth);
 desk.grantAdminRole(adminAddress);
 ```
 
 ### 4. Operation
+
 - Users interact directly with controller
 - Controller validates and processes requests
 - Controller mints/burns through token contract
 
 ### 5. Decommissioning
+
 ```solidity
 // Remove from registry
 registry.removeController(address(desk));
@@ -229,6 +237,7 @@ fusd.revokeRole(fusd.CONTROLLER_ROLE(), address(desk));
    - Circuit breakers
 
 3. **Use Reentrancy Guards**
+
    ```solidity
    function mint() external nonReentrant {
        // Implementation
@@ -236,6 +245,7 @@ fusd.revokeRole(fusd.CONTROLLER_ROLE(), address(desk));
    ```
 
 4. **Emit Comprehensive Events**
+
    ```solidity
    emit Mint(msg.sender, msg.value, fusdAmount, ethPrice);
    ```
@@ -267,7 +277,8 @@ fusd.revokeRole(fusd.CONTROLLER_ROLE(), address(desk));
 2. **Oracle Manipulation**
    - Price validation in controllers
    - Oracle health checks
-   - Multiple oracle support planned
+   - Dual oracle system with timelock switching
+   - Secure oracle transition mechanisms
 
 3. **Admin Key Management**
    - Multi-signature recommended
@@ -277,6 +288,7 @@ fusd.revokeRole(fusd.CONTROLLER_ROLE(), address(desk));
 ## Integration Guide
 
 ### For Frontend Developers
+
 ```javascript
 // Get available controllers
 const controllers = await registry.getActiveControllers();
@@ -288,6 +300,7 @@ await desk.mint({ value: ethAmount });
 ```
 
 ### For Bot Developers
+
 ```javascript
 // Monitor all controllers
 for (const controller of controllers) {
@@ -301,6 +314,7 @@ for (const controller of controllers) {
 ## Summary
 
 The controller architecture provides a robust foundation for the fUSD system:
+
 - **Modularity**: Clean separation between token and business logic
 - **Extensibility**: Easy to add new minting mechanisms
 - **Security**: Multiple layers of protection and limits

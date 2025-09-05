@@ -67,19 +67,46 @@ fUSD is an ETH-collateralized stablecoin that maintains a soft peg to USD throug
    - **Timelock Switching**: 2-day delay mechanism for secure oracle transitions
    - **AccessControl**: Role-based permissions matching DeskController pattern
 
+### Deployment Architecture
+
+The deployment system is designed around a modular architecture that separates evergreen contracts from swappable components:
+
+#### Core Contracts (Deploy Once)
+
+- **fUSD Token**: The main stablecoin contract that remains constant
+- **ControllerRegistry**: Central registry that manages all controllers
+
+#### Swappable Components
+
+- **Oracles**: MockOracle for testing, PythOracle for production
+- **Controllers**: DeskController and future controller implementations
+
+#### Deployment Sequence
+
+1. **Core Deployment** (`DeployCore.s.sol`): Deploys fUSD and ControllerRegistry
+2. **Oracle Deployment** (`DeployOracles.s.sol`): Deploys both MockOracle and PythOracle
+3. **Pyth Update** (`UpdatePyth.s.sol`): Updates PythOracle with latest price data
+4. **Controller Deployment** (`DeployControllers.s.sol`): Deploys DeskController with oracle dependencies
+
+This modular approach enables:
+
+- Independent upgrades of oracles without redeploying core contracts
+- Testing different controller implementations
+- Easier maintenance and reduced deployment costs for component updates
+
 ## Quick Start
 
 ### Prerequisites
 
 - [Foundry](https://book.getfoundry.sh/getting-started/installation)
 - Node.js (for offchain scripts)
-- ETH on testnet for deployment
+- [ETH on Fluent testnet](https://testnet.gblend.xyz/) for deployment
 
 ### Installation
 
 ```bash
-git clone <repository>
-cd testnet-stablecoin
+git clone https://github.com/fluentlabs-xyz/fUSD-multi-controller.git
+cd fUSD-multi-controller
 forge install
 ```
 
@@ -104,8 +131,20 @@ PYTH="0x2880aB155794e7179c9eE2e38200202908C17B43"
 
 ### Deployment
 
+The deployment process is split into four modular scripts to separate core contracts (deployed once) from swappable components (oracles and controllers):
+
 ```bash
-forge script script/DeployFUSD.s.sol --rpc-url $RPC_URL --broadcast
+# 1. Deploy the core contracts (fUSD + ControllerRegistry)
+forge script script/DeployCore.s.sol:DeployCore --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast
+
+# 2. Deploy the oracles (MockOracle + PythOracle)
+forge script script/DeployOracles.s.sol:DeployOracles --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast
+
+# 3. Update Pyth price feed (required for DeskController deployment)
+forge script script/UpdatePyth.s.sol:UpdatePyth --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast
+
+# 4. Deploy the controllers (DeskController)
+forge script script/DeployControllers.s.sol:DeployControllers --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast
 ```
 
 ### Basic Usage
@@ -166,9 +205,13 @@ testnet-stablecoin/
 │       ├── IOracle.sol            # Oracle interface
 │       └── IUSD.sol               # Token interface
 ├── script/
-│   ├── DeployFUSD.s.sol           # Deployment script
+│   ├── DeployCore.s.sol           # Core contracts (fUSD + Registry)
+│   ├── DeployOracles.s.sol        # Oracle deployments
+│   ├── UpdatePyth.s.sol           # Pyth price feed updates
+│   ├── DeployControllers.s.sol    # Controller deployments
 │   └── config/
-│       └── admins.json            # Admin configuration
+│       ├── admins.json            # Admin configuration
+│       └── deployments.json       # Contract addresses
 ├── test/
 │   ├── FUSD.t.sol                 # Main test suite
 │   └── oracles/

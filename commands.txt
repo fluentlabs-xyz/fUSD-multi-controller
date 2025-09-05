@@ -1,0 +1,47 @@
+curl -X GET "https://hermes.pyth.network/v2/updates/price/latest?ids[]=0xff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace" \
+  -H "accept: application/json" > pyth/pyth_update_data.json
+
+# Deploy the evergreen contracts
+forge script script/DeployCore.s.sol:DeployCore --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast
+
+# Deploy the oracles
+forge script script/DeployOracles.s.sol:DeployOracles --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast
+
+# Update the Pyth price feed
+forge script script/UpdatePyth.s.sol:UpdatePyth --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast
+
+# Deploy the controller(s)
+forge script script/DeployControllers.s.sol:DeployControllers --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast
+
+
+# 1. Verify fUSD Token (no constructor args)
+forge verify-contract 0x7A9ab9D0E2ca7472d1339F082F79F2F712F8Ebc9 fUSD \
+    --verifier blockscout \
+    --verifier-url https://testnet.fluentscan.xyz/api/
+
+# 2. Verify ControllerRegistry
+forge verify-contract 0xFf3e256ae44Ac6f9908762a489Bb526d920523b7 ControllerRegistry \
+    --verifier blockscout \
+    --verifier-url https://testnet.fluentscan.xyz/api/ \
+    --constructor-args $(cast abi-encode "constructor(address)" 0xc5702f2D4125dBDDD88AAE3435545746FfdF18B1)
+
+# 3. Verify MockOracle
+forge verify-contract 0xD4629597DB19F2d458c7670D7F3a45A686072341 MockOracle \
+    --verifier blockscout \
+    --verifier-url https://testnet.fluentscan.xyz/api/ \
+    --constructor-args $(cast abi-encode "constructor(address)" 0xc5702f2D4125dBDDD88AAE3435545746FfdF18B1)
+
+# 5. Verify PythOracle
+forge verify-contract 0xE532Fa9ED4a6401595318724099e014F9F37db52 PythOracle \
+    --verifier blockscout \
+    --verifier-url https://testnet.fluentscan.xyz/api/ \
+    --constructor-args $(cast abi-encode "constructor(address,address)" 0x2880aB155794e7179c9eE2e38200202908C17B43 0xc5702f2D4125dBDDD88AAE3435545746FfdF18B1)
+
+# 4. Verify DeskController
+forge verify-contract 0xE2B00878fA4A06E5cAB555df3BBAD39c5eDFD2c8 DeskController \
+    --verifier blockscout \
+    --verifier-url https://testnet.fluentscan.xyz/api/ \
+    --constructor-args $(cast abi-encode "constructor(address,address)" 0x7A9ab9D0E2ca7472d1339F082F79F2F712F8Ebc9 0xE532Fa9ED4a6401595318724099e014F9F37db52)
+
+# Extract and use in one command
+cast call $PYTH "getUpdateFee(bytes[])" "[[\"0x$(jq -r '.binary.data[0]' pyth/pyth_update_data.json)\"]]" --rpc-url $RPC_URL

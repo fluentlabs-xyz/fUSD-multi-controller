@@ -6,7 +6,7 @@ import {console} from "forge-std/console.sol";
 import {fUSD} from "src/fUSD.sol";
 import {DeskController} from "src/controller/DeskController.sol";
 import {ControllerRegistry} from "src/controller/ControllerRegistry.sol";
-import {MockOracle} from "src/MockOracle.sol";
+import {MockOracle} from "src/oracles/MockOracle.sol";
 
 contract FUSDTest is Test {
     fUSD public stablecoin;
@@ -20,7 +20,7 @@ contract FUSDTest is Test {
     address public emergency = address(0x4);
 
     // Change from constant to regular variable
-    uint256 public ETH_PRICE = 4500 * 1e6; // $4500 with 6 decimals
+    uint256 public ethPrice = 4500 * 1e6; // $4500 with 6 decimals
     uint256 public constant INITIAL_ETH = 10 ether;
 
     function setUp() public {
@@ -32,7 +32,6 @@ contract FUSDTest is Test {
         registry = new ControllerRegistry(admin);
 
         // Setup permissions
-        console.log("Setting up permissions...");
         stablecoin.grantRole(stablecoin.CONTROLLER_ROLE(), address(desk));
 
         // Remove the CONTROLLER_ROLE from the test contract since we don't need it
@@ -41,6 +40,8 @@ contract FUSDTest is Test {
         // Grant ADMIN_ROLE and EMERGENCY_ROLE directly using the test contract's DEFAULT_ADMIN_ROLE
         desk.grantRole(desk.ADMIN_ROLE(), admin);
         desk.grantRole(desk.EMERGENCY_ROLE(), emergency);
+
+        // Oracle roles: admin already has all roles from constructor
 
         // Set a very short cooldown for testing (1 second instead of 1 day)
         vm.prank(admin);
@@ -105,7 +106,7 @@ contract FUSDTest is Test {
 
     function test_MintFunctionality() public {
         uint256 mintAmount = 1 ether;
-        uint256 expectedFusd = (mintAmount * ETH_PRICE) / 1e18;
+        uint256 expectedFusd = (mintAmount * ethPrice) / 1e18;
 
         vm.deal(user1, mintAmount);
         vm.prank(user1);
@@ -118,7 +119,7 @@ contract FUSDTest is Test {
     function test_BurnFunctionality() public {
         // First mint some fUSD
         uint256 mintAmount = 1 ether;
-        uint256 expectedFusd = (mintAmount * ETH_PRICE) / 1e18;
+        uint256 expectedFusd = (mintAmount * ethPrice) / 1e18;
 
         vm.deal(user1, mintAmount);
         vm.prank(user1);
@@ -200,7 +201,7 @@ contract FUSDTest is Test {
         // Test healthy oracle
         assertTrue(desk.isOracleHealthy());
 
-        // Test unhealthy oracle
+        // Test unhealthy oracle (using admin since they have all oracle roles)
         vm.prank(admin);
         oracle.setHealthStatus(false);
 

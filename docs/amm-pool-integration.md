@@ -12,7 +12,7 @@ This document outlines the planned integration with Automated Market Maker (AMM)
 
 ### Pool Types
 
-1. **Primary Pool: ETH/fUSD**
+1. **Primary Pool: WETH/fUSD**
    - Direct pairing with collateral asset
    - Deepest liquidity expected
    - Primary arbitrage venue
@@ -186,6 +186,7 @@ function checkLiquidityDepth() external view returns (bool sufficient) {
 ### 1. Flash Loan Attacks
 
 Protection mechanisms:
+
 - Reentrancy guards on all functions
 - Price manipulation checks
 - Maximum transaction size limits
@@ -233,6 +234,7 @@ contract CrossChainPool {
 ### 2. Concentrated Liquidity
 
 Integration with Uniswap V3-style pools:
+
 - Custom price ranges
 - Active liquidity management
 - Fee tier optimization
@@ -304,21 +306,25 @@ const poolMetrics = {
 ## Implementation Timeline
 
 ### Phase 1: Basic Pool Creation (Month 1)
+
 - Deploy factory contract
 - Create ETH/fUSD pool
 - Basic liquidity provision
 
 ### Phase 2: Arbitrage Infrastructure (Month 2)
+
 - Deploy arbitrage bots
 - Implement monitoring
 - Test arbitrage cycles
 
 ### Phase 3: Advanced Features (Month 3)
+
 - Multiple pool support
 - Concentrated liquidity
 - Cross-chain preparation
 
 ### Phase 4: Optimization (Month 4)
+
 - Gas optimization
 - MEV protection
 - Advanced analytics

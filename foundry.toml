@@ -2,6 +2,10 @@
 src = "src"
 out = "out"
 libs = ["lib"]
-fs_permissions = [{ access = "read", path = "./script/config/admins.json" }]
+fs_permissions = [
+    { access = "read", path = "./script/config/admins.json" },
+    { access = "read-write", path = "./script/config/deployments.json" },
+    { access = "read", path = "./pyth/pyth_update_data.json" }
+]
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

@@ -511,6 +511,7 @@ async function findBestArbitrageRoute() {
 ## Summary
 
 The arbitrage bot serves as a critical component for:
+
 - **Price Stability**: Maintaining fUSD peg
 - **Profitability**: Generating returns for operators
 - **Market Efficiency**: Reducing price discrepancies

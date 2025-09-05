@@ -1,36 +1,31 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import {IOracle} from "./interfaces/IOracle.sol";
+import {IOracle} from "../interfaces/IOracle.sol";
+import {AccessControl} from "lib/openzeppelin-contracts/contracts/access/AccessControl.sol";
 
 /**
  * @title MockOracle
  * @dev Mock oracle for testing fUSD with configurable ETH/USD pricing
  * Includes deterministic fluctuations and health status for testing various scenarios
  */
-contract MockOracle is IOracle {
-    uint256 public ETH_PRICE = 4500 * 1e6; // $4500 with 6 decimals
+contract MockOracle is IOracle, AccessControl {
+    uint256 public ethPrice = 4500 * 1e6; // $4500 with 6 decimals
     bool public enableFluctuations = false;
     uint256 public fluctuationRange = 50; // 0.5% = 50 basis points
 
     // Oracle health status
     bool public isOracleHealthy = true;
 
-    // Admin controls
-    address public admin;
+    // Role definitions
+    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 public constant EMERGENCY_ROLE = keccak256("EMERGENCY_ROLE");
 
     // Events
     event FluctuationsToggled(bool enabled);
     event FluctuationRangeUpdated(uint256 oldRange, uint256 newRange);
     event HealthStatusUpdated(bool oldStatus, bool newStatus);
-    event AdminUpdated(address indexed oldAdmin, address indexed newAdmin);
     event PriceUpdated(uint256 oldPrice, uint256 newPrice);
-
-    // Modifier for admin-only functions
-    modifier onlyAdmin() {
-        require(msg.sender == admin, "MockOracle: admin only");
-        _;
-    }
 
     /**
      * @dev Constructor
@@ -38,7 +33,10 @@ contract MockOracle is IOracle {
      */
     constructor(address _admin) {
         require(_admin != address(0), "MockOracle: zero address");
-        admin = _admin;
+
+        _grantRole(DEFAULT_ADMIN_ROLE, _admin);
+        _grantRole(ADMIN_ROLE, _admin);
+        _grantRole(EMERGENCY_ROLE, _admin);
     }
 
     /**
@@ -47,7 +45,7 @@ contract MockOracle is IOracle {
      * @return Price with fluctuations applied
      */
     function _calculatePriceWithFluctuations(uint256 timestamp) internal view returns (uint256) {
-        if (!enableFluctuations) return ETH_PRICE;
+        if (!enableFluctuations) return ethPrice;
 
         // Deterministic fluctuations for testing
         // Changes every 5 minutes (300 seconds) for predictable testing
@@ -55,7 +53,7 @@ contract MockOracle is IOracle {
 
         // Generate a more meaningful deviation that actually uses the full range
         // Convert basis points to actual percentage and apply to price
-        uint256 maxDeviation = (ETH_PRICE * fluctuationRange) / 10000; // Convert basis points to actual price deviation
+        uint256 maxDeviation = (ethPrice * fluctuationRange) / 10000; // Convert basis points to actual price deviation
         uint256 deviation = seed % (maxDeviation * 2 + 1); // +1 to include maxDeviation
         uint256 priceChange = deviation > maxDeviation ? maxDeviation : deviation;
 
@@ -63,9 +61,9 @@ contract MockOracle is IOracle {
         bool priceGoesUp = (seed % 2) == 0;
 
         if (priceGoesUp) {
-            return ETH_PRICE + priceChange;
+            return ethPrice + priceChange;
         } else {
-            return ETH_PRICE > priceChange ? ETH_PRICE - priceChange : ETH_PRICE / 2; // Prevent negative prices
+            return ethPrice > priceChange ? ethPrice - priceChange : ethPrice / 2; // Prevent negative prices
         }
     }
 
@@ -76,7 +74,7 @@ contract MockOracle is IOracle {
     function getEthUsd() external view returns (uint256) {
         require(isOracleHealthy, "MockOracle: oracle unhealthy");
 
-        if (!enableFluctuations) return ETH_PRICE;
+        if (!enableFluctuations) return ethPrice;
 
         return _calculatePriceWithFluctuations(block.timestamp);
     }
@@ -93,7 +91,7 @@ contract MockOracle is IOracle {
      * @dev Toggle price fluctuations on/off
      * @param enabled Whether to enable fluctuations
      */
-    function setFluctuations(bool enabled) external onlyAdmin {
+    function setFluctuations(bool enabled) external onlyRole(ADMIN_ROLE) {
         enableFluctuations = enabled;
 
         emit FluctuationsToggled(enabled);
@@ -103,7 +101,7 @@ contract MockOracle is IOracle {
      * @dev Update fluctuation range
      * @param newRange New fluctuation range in basis points (1 = 0.01%)
      */
-    function setFluctuationRange(uint256 newRange) external onlyAdmin {
+    function setFluctuationRange(uint256 newRange) external onlyRole(ADMIN_ROLE) {
         require(newRange <= 1000, "MockOracle: range too high"); // Max 10%
 
         uint256 oldRange = fluctuationRange;
@@ -116,24 +114,11 @@ contract MockOracle is IOracle {
      * @dev Set oracle health status
      * @param healthy Whether oracle should be healthy
      */
-    function setHealthStatus(bool healthy) external onlyAdmin {
+    function setHealthStatus(bool healthy) external onlyRole(EMERGENCY_ROLE) {
         bool oldStatus = isOracleHealthy;
         isOracleHealthy = healthy;
 
         emit HealthStatusUpdated(oldStatus, healthy);
-    }
-
-    /**
-     * @dev Update admin address
-     * @param newAdmin New admin address
-     */
-    function setAdmin(address newAdmin) external onlyAdmin {
-        require(newAdmin != address(0), "MockOracle: zero address");
-
-        address oldAdmin = admin;
-        admin = newAdmin;
-
-        emit AdminUpdated(oldAdmin, newAdmin);
     }
 
     /**
@@ -165,13 +150,13 @@ contract MockOracle is IOracle {
         view
         returns (uint256 basePrice, bool fluctuationsEnabled, uint256 range, bool healthy)
     {
-        return (ETH_PRICE, enableFluctuations, fluctuationRange, isOracleHealthy);
+        return (ethPrice, enableFluctuations, fluctuationRange, isOracleHealthy);
     }
 
     /**
      * @dev Simulate oracle failure (for testing error scenarios)
      */
-    function simulateFailure() external onlyAdmin {
+    function simulateFailure() external onlyRole(EMERGENCY_ROLE) {
         isOracleHealthy = false;
         emit HealthStatusUpdated(true, false);
     }
@@ -179,7 +164,7 @@ contract MockOracle is IOracle {
     /**
      * @dev Simulate oracle recovery
      */
-    function simulateRecovery() external onlyAdmin {
+    function simulateRecovery() external onlyRole(EMERGENCY_ROLE) {
         isOracleHealthy = true;
         emit HealthStatusUpdated(false, true);
     }
@@ -188,12 +173,68 @@ contract MockOracle is IOracle {
      * @dev Set a specific price for testing purposes (admin only)
      * @param newPrice New price to set
      */
-    function setPrice(uint256 newPrice) external onlyAdmin {
+    function setPrice(uint256 newPrice) external onlyRole(ADMIN_ROLE) {
         require(newPrice > 0, "MockOracle: price must be positive");
 
-        uint256 oldPrice = ETH_PRICE;
-        ETH_PRICE = newPrice;
+        uint256 oldPrice = ethPrice;
+        ethPrice = newPrice;
 
         emit PriceUpdated(oldPrice, newPrice);
+    }
+
+    // ===== ROLE MANAGEMENT FUNCTIONS =====
+
+    /**
+     * @dev Grant admin role to an address (only DEFAULT_ADMIN_ROLE can call)
+     * @param account Address to grant admin role to
+     */
+    function grantAdminRole(address account) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(account != address(0), "MockOracle: zero address");
+        _grantRole(ADMIN_ROLE, account);
+    }
+
+    /**
+     * @dev Revoke admin role from an address (only DEFAULT_ADMIN_ROLE can call)
+     * @param account Address to revoke admin role from
+     */
+    function revokeAdminRole(address account) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(account != address(0), "MockOracle: zero address");
+        _revokeRole(ADMIN_ROLE, account);
+    }
+
+    /**
+     * @dev Grant emergency role to an address (only DEFAULT_ADMIN_ROLE can call)
+     * @param account Address to grant emergency role to
+     */
+    function grantEmergencyRole(address account) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(account != address(0), "MockOracle: zero address");
+        _grantRole(EMERGENCY_ROLE, account);
+    }
+
+    /**
+     * @dev Revoke emergency role from an address (only DEFAULT_ADMIN_ROLE can call)
+     * @param account Address to revoke emergency role from
+     */
+    function revokeEmergencyRole(address account) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        require(account != address(0), "MockOracle: zero address");
+        _revokeRole(EMERGENCY_ROLE, account);
+    }
+
+    /**
+     * @dev Check if an address has admin role
+     * @param account Address to check
+     * @return True if address has admin role
+     */
+    function hasAdminRole(address account) external view returns (bool) {
+        return hasRole(ADMIN_ROLE, account);
+    }
+
+    /**
+     * @dev Check if an address has emergency role
+     * @param account Address to check
+     * @return True if address has emergency role
+     */
+    function hasEmergencyRole(address account) external view returns (bool) {
+        return hasRole(EMERGENCY_ROLE, account);
     }
 }
